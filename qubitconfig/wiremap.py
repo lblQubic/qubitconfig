@@ -17,6 +17,8 @@ class Wiremap:
         Parameters
         ----------
             cfg: either string or dict
+                if string, path to wiremap json file
+                else, wiremap dict loaded from json
         """
         if isinstance(cfg, str):
             with open(cfg) as f:
@@ -35,6 +37,19 @@ class Wiremap:
                 self.lofreq[k] = getattr(self, v)
 
 def replace_json_nones(cfg):
+    """
+    Replace values in cfg dict that are (case insensitive) 'None' 
+    strings with python NoneType; recurses through config in the 
+    case of nested dicts. Note: input cfg will be MODIFIED
+
+    Parameters
+    ----------
+        cfg : dict
+    Returns
+    -------
+        dict : modified dictionary (note: original is also modified)
+            
+    """
     for k, v in cfg.items():
         if isinstance(v, str):
             if v.lower() == 'none':

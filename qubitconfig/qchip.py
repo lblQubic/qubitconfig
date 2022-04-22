@@ -76,10 +76,23 @@ class QChip:
     def save(self, wfilename):
         fwrite=open(wfilename, 'w')
         json.dump(self.paradict, fwrite, indent=4)
-        print('c_qchip.updatecfg', wfilename)
+        #print('c_qchip.updatecfg', wfilename)
         fwrite.close()
 
     def get_qubit_freq(self, freqname):
+        """
+        Get qubit frequency (could be read, drive, etc) from
+        a qubit in the self.qubits dictionary.
+
+        Parameters
+        ----------
+            freqname : str
+                Frequency to get; format should be <QubitName>.<freqname>
+        Returns
+        -------
+            int
+                qubit frequency in Hz
+        """
         if isinstance(freqname, str):
             m=re.match('(?P<qname>\S+)\.(?P<fname>\S+)', freqname)
             if m:
