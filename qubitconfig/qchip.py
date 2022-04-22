@@ -1,4 +1,4 @@
-import envelop_pulse
+from qubitconfig import envelope_pulse
 
 import inspect
 import time
@@ -6,11 +6,10 @@ import copy
 import json
 import numpy as np
 import re
-import matplotlib.pyplot as plt
 
 class Qubit:
     """
-    How standard should we make this? Maybe require 
+    Todo: How standard should we make this? Maybe require 
     certain params (e.g. drive_freq/freq and read_freq)
     """
     def __init__(self, **paradict):
@@ -30,7 +29,19 @@ class Qubit:
 
 class QChip:
     """
-    Class containing config
+    Class containing configuration information for a chip described by a qchip json file
+    (see examples/qubitcfg.json), as well as routines for calculating pulse envelopes. 
+
+    Attributes
+    ----------
+        gates : dict
+            dictionary of gate objects, with keys corresponding to those in json config
+        qubits : dict
+            dictionary of qubit objects
+        gate_dict : dict
+            dictionary of gate config information; key: gatename, value: list of pulse dicts
+        paradict : dict
+            config dictionary
     """
     def __init__(self, paradict):#, "gate1":Gate}):
         if isinstance(paradict, str):
@@ -57,7 +68,7 @@ class QChip:
                 if p in gatesdict:
                     pulseout.extend(self._gatedictexpand(gatesdict, p))
                 else:
-                    exit('Error gate description: %s'%p)
+                    raise Exception('Error gate description: %s'%p)
             else:
                 pulseout.append(p)
         return pulseout
@@ -90,10 +101,7 @@ class QChip:
             return freqname #todo: do we actually want this to return int or should we do typechecking beforehand?
 
         else:
-            raise TypeError("%s is not a string"%str(freqname))
-            freq=freqname
-
-        return freq
+            raise TypeError("%s is not a string or number"%str(freqname))
 
     def getdest(self, destname):
         [q, d]=destname.split('.')
@@ -110,7 +118,7 @@ class QChip:
     def gate_dict(self):
         gdict = {}
         for name, obj in self.gates.items():
-            gdict[name] = vars(obj)
+            gdict[name] = obj.paradict
         return gdict
 
     @property
@@ -132,8 +140,8 @@ class Gate:
     @property
     def norm(self, dt, FS):
         if len(self.pulses)==2: #todo: why hardcoded to 2
-            p0=self.pulses[0].pulseval(dt, self.pulses[0].fcarrier, mod=False).nvval(dt)[1]
-            p1=self.pulses[1].pulseval(dt, self.pulses[1].fcarrier, mod=False).nvval(dt)[1]
+            p0 = self.pulses[0].pulseval(dt, self.pulses[0].fcarrier, mod=False).nvval(dt)[1]
+            p1 = self.pulses[1].pulseval(dt, self.pulses[1].fcarrier, mod=False).nvval(dt)[1]
             self._norm = np.sum(p0*p1)*FS
         return self._norm
 
@@ -145,7 +153,7 @@ class Gate:
     def tstart(self, tstart):
         self._tstart=tstart
         for pulse in self.pulses:
-            pulse.gate_tstart = tstart
+            pulse.gate_tstart = tstart #todo: how to handle gate pulse tstarts
 
     @property
     def tlength(self):
@@ -156,13 +164,13 @@ class Gate:
         return max([pulse.tend() for pulse in self.pulses])#self.tstart+self.t0+self.tlength()
 
     @property
-    def cfg_dict(self):
+    def paradict(self):
         cfg = []
         for pulse in self.pulses:
-            cfg.append(pulse.cfg_dict)
+            cfg.append(pulse.paradict)
+        return cfg
 
     def pcalc(self, dt=0, padd=0, freq=None): #todo: what is this?
-        #print np.array([(freq  if freq else p.fcarrier) for p  in  self.pulses])
         return np.array([p.pcarrier+2*np.pi*(freq  if freq else p.fcarrier)*(dt+p.t0)+padd for p  in  self.pulses])
 
 class GatePulse:
@@ -187,7 +195,7 @@ class GatePulse:
                 except Exception as e:
                     v=paradict[k]
                 setattr(self, k, v)
-            elif k in ['env']:
+            elif k in ['env']: #should we require an envelope?
                 setattr(self, k, Envelop(paradict[k]))
 
         self.gate_tstart = 0
@@ -213,11 +221,18 @@ class GatePulse:
         return self.tstart + self.twidth
 
     @property
-    def cfg_dict(self):
-        cfg = vars(self)
-        cfg.pop('chip')
-        cfg.pop('gate')
-        cfg['env'] = self.env
+    def paradict(self):
+        #cfg = vars(self)
+        cfg = {}
+        cfg['amp'] = self.amp
+        cfg['twidth'] = self.twidth
+        cfg['t0'] = self.t0
+        cfg['pcarrier'] = self.pcarrier
+        cfg['dest'] = self.dest
+        cfg['fcarrier'] = self.fcarrier
+        if hasattr(self, 'env'):
+            cfg['env'] = self.env.env_desc
+        return cfg
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -271,16 +286,16 @@ class Envelop:
         twidth=round(twidth, 10)
         for env in self.env_desc:
             if vbase is None:
-                ti, vbase =getattr(envelop_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['paradict'])
+                ti, vbase = getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['paradict'])
             else:
-                ti1, vbasenew=(getattr(envelop_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['paradict']))
+                ti1, vbasenew = (getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['paradict']))
                 if any(ti!=ti1):
                     print('different time!!?')
-                vbase=vbase*vbasenew
+                vbase = vbase*vbasenew
         if mod:
-            vlo=np.cos(2*np.pi*fif*ti+pini)
+            vlo = np.cos(2*np.pi*fif*ti+pini)
         else:
-            vlo=1
+            vlo = 1
 
         val=amp*vlo*vbase
         tv=c_tv(ti, val)
