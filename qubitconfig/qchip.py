@@ -35,9 +35,9 @@ class QChip:
     Attributes
     ----------
         gates : dict
-            dictionary of gate objects, with keys corresponding to those in json config
+            dictionary of Gate objects, with keys corresponding to those in json config
         qubits : dict
-            dictionary of qubit objects
+            dictionary of Qubit objects
         gate_dict : dict
             dictionary of gate config information; key: gatename, value: list of pulse dicts
         paradict : dict
