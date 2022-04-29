@@ -12,20 +12,11 @@ class Qubit:
     Todo: How standard should we make this? Maybe require 
     certain params (e.g. drive_freq/freq and read_freq)
     """
-    def __init__(self, **paradict):
-        self.phase={}
-        for k, v in paradict.items():
+    def __init__(self, freq=None, readfreq=None, **kwargs):
+        self.freq = freq
+        self.readfreq = readfreq
+        for k, v in kwargs.items():
             setattr(self, k, v)
-            self.phase[k]=0 #todo: why is this here?
-
-        self.qdrv=[] #todo: what are these?
-        self.rdrv=[]
-        self.read=[]
-        self.mark=[]
-    def add_phase(self, freqname, phase):
-        self.phase[freqname]=(self.phase[freqname]+phase)%(2*np.pi)
-    def add_time_phase(self, freqname, time):
-        self.phase[freqname]=(self.phase[freqname]+2*np.pi*getattr(self, freqname)*time)%(2*np.pi)
 
 class QChip:
     """
@@ -40,42 +31,25 @@ class QChip:
             dictionary of Qubit objects
         gate_dict : dict
             dictionary of gate config information; key: gatename, value: list of pulse dicts
-        paradict : dict
+        cfg_dict : dict
             config dictionary
     """
-    def __init__(self, paradict):#, "gate1":Gate}):
-        if isinstance(paradict, str):
-            with open(paradict) as f:
-                paradict = json.load(paradict)
+    def __init__(self, cfg_dict):#, "gate1":Gate}):
+        if isinstance(cfg_dict, str):
+            with open(cfg_dict) as f:
+                cfg_dict = json.load(cfg_dict)
 
         self.qubits={}
-        for k, v in paradict['Qubits'].items():
+        for k, v in cfg_dict['Qubits'].items():
             self.qubits.update({k:Qubit(**v)})
 
-        gatesdict = {}
-        for gatename in paradict['Gates']:
-            gatesdict[gatename]=self._gatedictexpand(paradict['Gates'], gatename)
-
         self.gates = {}
-        for k, pulselist in gatesdict.items():
+        for k, pulselist in cfg_dict['Gates'].items():
             self.gates.update({k:Gate(pulselist, chip=self, name=k)})
-
-
-    def _gatedictexpand(self, gatesdict, gatename):
-        pulseout=[]
-        for p in gatesdict[gatename]:
-            if isinstance(p, str):
-                if p in gatesdict:
-                    pulseout.extend(self._gatedictexpand(gatesdict, p))
-                else:
-                    raise Exception('Error gate description: %s'%p)
-            else:
-                pulseout.append(p)
-        return pulseout
 
     def save(self, wfilename):
         fwrite=open(wfilename, 'w')
-        json.dump(self.paradict, fwrite, indent=4)
+        json.dump(self.cfg_dict, fwrite, indent=4)
         #print('c_qchip.updatecfg', wfilename)
         fwrite.close()
 
@@ -131,24 +105,25 @@ class QChip:
     def gate_dict(self):
         gdict = {}
         for name, obj in self.gates.items():
-            gdict[name] = obj.paradict
+            gdict[name] = obj.cfg_dict
         return gdict
 
     @property
-    def paradict(self):
+    def cfg_dict(self):
         return {'Qubits': self.qubit_dict, 'Gates': self.gate_dict}
 
 class Gate:
-    def __init__(self, pulse_list, chip, name):
+    def __init__(self, contents, chip, name):
         self.chip=chip
         self.name=name
-        self.pulses=[]
+        self.contents=[]
         self._norm = 1.0
 
-        for paradict in pulse_list:
-            self.pulses.append(GatePulse(gate=self, paradict=paradict))
-
-        self._tstart = None #todo: should this be 0?
+        for item_dict in contents:
+            if 'gate' in item_dict.keys():
+                self.contents.append(item_dict)
+            else:
+                self.contents.append(GatePulse(gate=self, cfg_dict=item_dict))
 
     @property
     def norm(self, dt, FS):
@@ -159,65 +134,57 @@ class Gate:
         return self._norm
 
     @property
-    def tstart(self):
-        return self._tstart
-
-    @tstart.setter
-    def tstart(self, tstart):
-        self._tstart=tstart
-        for pulse in self.pulses:
-            pulse.gate_tstart = tstart #todo: how to handle gate pulse tstarts
-
-    @property
     def tlength(self):
-        return max([p.t0+p.twidth for p in self.pulses]) - min([p.t0 for p in self.pulses])
+        return max([p.t0+p.twidth for p in self.get_pulses()]) - min([p.t0 for p in self.get_pulses()])
 
     @property
-    def tend(self):
-        return max([pulse.tend() for pulse in self.pulses])#self.tstart+self.t0+self.tlength()
-
-    @property
-    def paradict(self):
+    def cfg_dict(self):
         cfg = []
-        for pulse in self.pulses:
-            cfg.append(pulse.paradict)
+        for item in self.contents:
+            if isinstance(item, GatePulse):
+                cfg.append(item.cfg_dict)
+            else:
+                cfg.append(item)
         return cfg
+
+    def get_pulses(self, gate_t0=0):
+        pulselist = []
+        for item in self.contents:
+            if isinstance(item, GatePulse):
+                itemcpy = copy.deepcopy(item)
+                itemcpy.t0 += gate_t0
+                pulselist.append(itemcpy)
+            else:
+                pulselist.extend(self.chip.gates[item['gate']].get_pulses(gate_t0))
+        return pulselist
+
 
     def pcalc(self, dt=0, padd=0, freq=None): #todo: what is this?
         return np.array([p.pcarrier+2*np.pi*(freq  if freq else p.fcarrier)*(dt+p.t0)+padd for p  in  self.pulses])
 
 class GatePulse:
-    def __init__(self, gate, paradict):
+    def __init__(self, gate, cfg_dict):
         '''
         t0: pulse start time relative to the gate start time
-        tstart: pulse start time relative to circuit or circuits start time, this will be directly used for the trig_t
         twidth: pulse env function parameter for the pulse width
         patch: patch time added before the pulse, during this time, the pulse envelope value is 0
         tlength: pulse length including patch time, so that include the zeros at the begining, tlength=twidth+patch*dt
         '''
-        self.gate=gate #todo: do we need this reference?
-        self.chip=gate.chip
-        self.dest=None #what is this/do we need it here?
+        #self.gate=gate #todo: do we need this reference?
+        #self.chip=gate.chip
+        self.dest=None 
         self.amp = 0
         self.twidth = 0
         self.t0 = 0
-        for k in paradict:
+        for k in cfg_dict:
             if k in ['amp', 'twidth', 't0', 'pcarrier', 'dest', 'fcarrier']: #do we want this restriction? what about other alphas?
                 try:
-                    v=eval(str(paradict[k]))
+                    v=eval(str(cfg_dict[k]))
                 except Exception as e:
-                    v=paradict[k]
+                    v=cfg_dict[k]
                 setattr(self, k, v)
             elif k in ['env']: #should we require an envelope?
-                setattr(self, k, Envelop(paradict[k]))
-
-        self.gate_tstart = 0
-        self.npatch=0 #todo: what are these; do we need them here?
-        self.tpatch=0
-
-    @property
-    def tstart(self):
-        return self.gate_tstart + self.t0
+                setattr(self, k, Envelop(cfg_dict[k]))
 
     def pulseval(self, dt, flo=0, mod=True):
         fcarrier = self.chip.get_qubit_freq(self.fcarrier)
@@ -234,7 +201,7 @@ class GatePulse:
         return self.tstart + self.twidth
 
     @property
-    def paradict(self):
+    def cfg_dict(self):
         #cfg = vars(self)
         cfg = {}
         cfg['amp'] = self.amp
@@ -275,8 +242,8 @@ class GatePulse:
         return all([ampeq, twidtheq, desteq, enveq])
 
     def __hash__(self):
-        #return hash(str(self.paradict))
-        return hash(str({k:self.paradict[k] for k in ("amp", "twidth", "t0", "dest") if k in self.paradict}))
+        #return hash(str(self.cfg_dict))
+        return hash(str({k:self.cfg_dict[k] for k in ("amp", "twidth", "t0", "dest") if k in self.cfg_dict}))
 
     def timeoverlap(self, other):
         overlap=False
@@ -299,9 +266,9 @@ class Envelop:
         twidth=round(twidth, 10)
         for env in self.env_desc:
             if vbase is None:
-                ti, vbase = getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['paradict'])
+                ti, vbase = getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['cfg_dict'])
             else:
-                ti1, vbasenew = (getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['paradict']))
+                ti1, vbasenew = (getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['cfg_dict']))
                 if any(ti!=ti1):
                     print('different time!!?')
                 vbase = vbase*vbasenew

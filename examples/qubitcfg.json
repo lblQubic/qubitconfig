@@ -1318,7 +1318,10 @@
                 "t0": 0.0,
                 "fcarrier": "Q4.freq"
             },
-            "Q5Q4CR",
+            {   
+                "gate": "Q5Q4CR",
+                "t0" : 0.0
+            },
             {
                 "pcarrier": 0.0,
                 "t0": 2.8e-07,
@@ -1354,7 +1357,10 @@
                 "fcarrier": "Q1.freq",
                 "t0": 0.0
             },
-            "Q1X90",
+            {
+                "gate": "Q1X90",
+                "t0": 0.0
+            },
             {
                 "pcarrier": "numpy.pi/2.0",
                 "fcarrier": "Q1.freq",
@@ -1367,7 +1373,10 @@
                 "fcarrier": "Q2.freq",
                 "t0": 0.0
             },
-            "Q2X90",
+            {   
+                "gate": "Q2X90",
+                "t0" : 0.0
+            },
             {
                 "pcarrier": "numpy.pi/2.0",
                 "fcarrier": "Q2.freq",
@@ -1380,7 +1389,10 @@
                 "fcarrier": "Q3.freq",
                 "t0": 0.0
             },
-            "Q3X90",
+            {   
+                "gate": "Q3X90",
+                "t0" : 0.0
+            },
             {
                 "pcarrier": "numpy.pi/2.0",
                 "fcarrier": "Q3.freq",
@@ -1393,7 +1405,10 @@
                 "fcarrier": "Q7.freq",
                 "t0": 0.0
             },
-            "Q7X90",
+            {   
+                "gate": "Q7X90",
+                "t0" : 0.0
+            },
             {
                 "pcarrier": "numpy.pi/2.0",
                 "fcarrier": "Q7.freq",
@@ -1406,7 +1421,10 @@
                 "fcarrier": "Q5.freq",
                 "t0": 0.0
             },
-            "Q5X90",
+            {   
+                "gate": "Q5X90",
+                "t0" : 0.0
+            },
             {
                 "pcarrier": "numpy.pi/2.0",
                 "fcarrier": "Q5.freq",
@@ -1419,7 +1437,10 @@
                 "fcarrier": "Q4.freq",
                 "t0": 0.0
             },
-            "Q4X90",
+            {   
+                "gate": "Q4X90",
+                "t0" : 0.0
+            },
             {
                 "pcarrier": "numpy.pi/2.0",
                 "fcarrier": "Q4.freq",
@@ -1451,7 +1472,10 @@
                 "t0": 0.0,
                 "fcarrier": "Q5.freq"
             },
-            "Q6Q5CR",
+            {   
+                "gate": "Q6Q5CR",
+                "t0" : 0.0
+            },
             {
                 "pcarrier": -0.8825714228129482,
                 "t0": 3.9199999999999996e-07,
@@ -1487,7 +1511,10 @@
                 "fcarrier": "Q6.freq",
                 "t0": 0.0
             },
-            "Q6X90",
+            {   
+                "gate": "Q6X90",
+                "t0" : 0.0
+            },
             {
                 "pcarrier": "numpy.pi/2.0",
                 "fcarrier": "Q6.freq",
@@ -1519,7 +1546,10 @@
                 "t0": 0.0,
                 "fcarrier": "Q3.freq"
             },
-            "Q4Q3CR",
+            {   
+                "gate": "Q4Q3CR",
+                "t0" : 0.0
+            },
             {
                 "pcarrier": 0.0,
                 "t0": 2.8e-07,
@@ -1574,7 +1604,10 @@
                 "t0": 0.0,
                 "fcarrier": "Q2.freq"
             },
-            "Q3Q2CR",
+            {   
+                "gate": "Q3Q2CR",
+                "t0" : 0.0
+            },
             {
                 "pcarrier": 3.4421663163516745,
                 "t0": 3.9199999999999996e-07,
