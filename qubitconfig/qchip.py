@@ -183,6 +183,18 @@ class Gate:
         return cfg
 
     def get_pulses(self, gate_t0=0):
+        """
+        Returns a list of pulses (as GatePulse objects) that make up the gate. All 
+        gates in 'contents' are broken down into constituent pulses. Returned GatePulses 
+        are deep copied, but still contain a reference to parent QChip.
+
+        Parameters
+        ----------
+            gate_t0 : start time of gate, which all pulses are referenced to
+        Returns
+        ------- 
+            list
+        """
         pulselist = []
         for item in self.contents:
             if isinstance(item, GatePulse):
@@ -195,12 +207,12 @@ class Gate:
                 pulselist.extend(self.chip.gates[item['gate']].get_pulses(gate_t0))
         return pulselist
 
-    def dereference_gates(self):
-        self.contents = self.get_pulses()
+    #def dereference(self):
+    #    self.contents = self.get_pulses()
 
 
-    def pcalc(self, dt=0, padd=0, freq=None): #todo: what is this?
-        return np.array([p.pcarrier+2*np.pi*(freq  if freq else p.fcarrier)*(dt+p.t0)+padd for p  in  self.pulses])
+    #def pcalc(self, dt=0, padd=0, freq=None): #todo: what is this?
+    #    return np.array([p.pcarrier+2*np.pi*(freq  if freq else p.fcarrier)*(dt+p.t0)+padd for p  in  self.get_pulses()])
 
 class GatePulse:
     """
@@ -218,7 +230,7 @@ class GatePulse:
         twidth: pulse env function parameter for the pulse width
         '''
         self.dest = dest 
-        self.fcarrier = fcarrier
+        self._fcarrier = fcarrier
         self.pcarrier = pcarrier
         self.chip = chip
         self.gate = gate 
@@ -246,6 +258,17 @@ class GatePulse:
         #    tv=None
         #return tv
     def get_env_samples(self, dt):
+        """
+        Returns the pulse envelope sampled at dt
+
+        Parameters
+        ----------
+            dt : float
+                sampling interval in seconds
+        Returns
+        -------
+            numpy array
+        """
         return self.env.get_samples(dt, self.twidth, self.amp)
 
     @property
@@ -253,10 +276,17 @@ class GatePulse:
         return self.tstart + self.twidth
 
     @property
+    def fcarrier(self):
+        if isinstance(self._fcarrier, str):
+            return self.chip.get_qubit_freq(self._fcarrier)
+        else:
+            return self._fcarrier
+
+    @property
     def cfg_dict(self):
         #cfg = vars(self)
         cfg = {}
-        cfg['fcarrier'] = self.fcarrier
+        cfg['fcarrier'] = self._fcarrier
         cfg['pcarrier'] = self.pcarrier
         if hasattr(self, 'dest'):
             cfg['dest'] = self.dest
@@ -271,30 +301,30 @@ class GatePulse:
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def __eq__(self, other):
-        #todo: why don't we compare fcarrier and pcarrier here
-        ampeq=False
-        twidtheq=False
-        desteq=False
-        enveq=False
-        if hasattr(self, 'env'):
-            if hasattr(other, 'env'):
-                if self.env==other.env:
-                    enveq=True
-        if hasattr(self, 'amp'):
-            if hasattr(other, 'amp'):
-                if self.amp==other.amp:
-                    ampeq=True
-        if hasattr(self, 'twidth'):
-            if hasattr(other, 'twidth'):
-                if self.twidth==other.twidth:
-                    twidtheq=True
-        if hasattr(self, 'dest'):
-            if hasattr(other, 'dest'):
-                if self.dest==other.dest:
-                    desteq=True
-#        return all([self.amp==other.amp, self.twidth==other.twidth, self.dest==other.dest, self.env==other.env])
-        return all([ampeq, twidtheq, desteq, enveq])
+   # def __eq__(self, other):
+   #     #todo: why don't we compare fcarrier and pcarrier here
+   #     ampeq=False
+   #     twidtheq=False
+   #     desteq=False
+   #     enveq=False
+   #     if hasattr(self, 'env'):
+   #         if hasattr(other, 'env'):
+   #             if self.env==other.env:
+   #                 enveq=True
+   #     if hasattr(self, 'amp'):
+   #         if hasattr(other, 'amp'):
+   #             if self.amp==other.amp:
+   #                 ampeq=True
+   #     if hasattr(self, 'twidth'):
+   #         if hasattr(other, 'twidth'):
+   #             if self.twidth==other.twidth:
+   #                 twidtheq=True
+   #     if hasattr(self, 'dest'):
+   #         if hasattr(other, 'dest'):
+   #             if self.dest==other.dest:
+   #                 desteq=True
+#  #      return all([self.amp==other.amp, self.twidth==other.twidth, self.dest==other.dest, self.env==other.env])
+   #     return all([ampeq, twidtheq, desteq, enveq])
 
     def __hash__(self):
         #return hash(str(self.cfg_dict))
@@ -321,7 +351,7 @@ class Envelope:
         twidth = round(twidth, 10) #todo: why do we round this?
 
         for env in self.env_desc:
-            ti, vali = getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['cfg_dict'])
+            ti, vali = getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['paradict'])
             if samples:
                 samples *= vali
                 assert np.all(ti==tlist)
