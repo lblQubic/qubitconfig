@@ -9,8 +9,15 @@ import re
 
 class Qubit:
     """
-    Todo: How standard should we make this? Maybe require 
-    certain params (e.g. drive_freq/freq and read_freq)
+    Simple class for storing qubit attributes
+
+    Attributes
+    ----------
+        freq : float
+            qubit drive frequency in Hz
+        readfreq : float
+            qubit readout resonator frequency in Hz
+        additional attributes set by kwargs
     """
     def __init__(self, freq=None, readfreq=None, **kwargs):
         self.freq = freq
@@ -26,7 +33,7 @@ class QChip:
     Attributes
     ----------
         gates : dict
-            dictionary of Gate objects, with keys corresponding to those in json config
+            dictionary of Gate objects, with keys corresponding to gate names in json config
         qubits : dict
             dictionary of Qubit objects
         gate_dict : dict
@@ -48,6 +55,9 @@ class QChip:
             self.gates.update({k:Gate(pulselist, chip=self, name=k)})
 
     def save(self, wfilename):
+        """
+        Save self.cfg_dict in path wfilename
+        """
         fwrite=open(wfilename, 'w')
         json.dump(self.cfg_dict, fwrite, indent=4)
         fwrite.close()
@@ -63,7 +73,7 @@ class QChip:
                 Frequency to get; format should be <QubitName>.<freqname>
         Returns
         -------
-            int
+            float
                 qubit frequency in Hz
         """
         if isinstance(freqname, str):
@@ -112,6 +122,11 @@ class QChip:
         return {'Qubits': self.qubit_dict, 'Gates': self.gate_dict}
 
     def add_gate(self, name, gate):
+        """
+        Add a new gate. 'gate' can be either Gate object or list of 
+        dicts (i.e. json file entry). If Gate, then origininal object
+        is copied, and parent chip reference is set to self.
+        """
         if isinstance(gate, Gate):
             gate = copy.deepcopy(gate)
             gate.chip = self
@@ -120,6 +135,29 @@ class QChip:
             self.gates[name] = Gate(gate, self, name)
 
 class Gate:
+    """
+    Describes a single or two-qubit gate. Primarily consists of a list of GatePulse
+    and/or other Gate objects.
+
+    Attributes
+    ----------
+        contents : list
+            List of components that make up the gate. These can be either 
+            GatePulse objects or references to other Gates in parent QChip
+        chip : QChip
+            Reference to parent QChip object (can be None). This is used to dereference 
+            any Gate objects in 'contents' when returning pulses.
+        name : string
+            Name of gate. Usually just the key in json file.
+        tlenghth : float
+            Returns total duration (in seconds) of gate
+        cfg_dict : dict
+            Returns human readable list of dicts describing contents
+    Methods
+    -------
+        get_pulses
+            Returns list of constituent pulses as GatePulse objects
+    """
     def __init__(self, contents, chip, name):
         self.chip=chip
         self.name=name
