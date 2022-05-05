@@ -34,7 +34,7 @@ class QChip:
         cfg_dict : dict
             config dictionary
     """
-    def __init__(self, cfg_dict):#, "gate1":Gate}):
+    def __init__(self, cfg_dict):
         if isinstance(cfg_dict, str):
             with open(cfg_dict) as f:
                 cfg_dict = json.load(cfg_dict)
@@ -50,7 +50,6 @@ class QChip:
     def save(self, wfilename):
         fwrite=open(wfilename, 'w')
         json.dump(self.cfg_dict, fwrite, indent=4)
-        #print('c_qchip.updatecfg', wfilename)
         fwrite.close()
 
     def get_qubit_freq(self, freqname):
@@ -112,27 +111,25 @@ class QChip:
     def cfg_dict(self):
         return {'Qubits': self.qubit_dict, 'Gates': self.gate_dict}
 
+    def add_gate(self, name, gate):
+        if isinstance(gate, Gate):
+            gate = copy.deepcopy(gate)
+            gate.chip = self
+            self.gates[name] = gate
+        elif isinstance(gate, list):
+            self.gates[name] = Gate(gate, self, name)
+
 class Gate:
     def __init__(self, contents, chip, name):
         self.chip=chip
         self.name=name
         self.contents=[]
-        self._norm = 1.0
 
         for item_dict in contents:
             if 'gate' in item_dict.keys():
                 self.contents.append(item_dict)
             else:
-                self.contents.append(GatePulse(gate=self, cfg_dict=item_dict))
-
-    @property
-    def norm(self, dt, FS):
-        if len(self.pulses)==2: #todo: why hardcoded to 2
-            p0 = self.pulses[0].pulseval(dt, self.pulses[0].fcarrier, mod=False).nvval(dt)[1]
-            p1 = self.pulses[1].pulseval(dt, self.pulses[1].fcarrier, mod=False).nvval(dt)[1]
-            self._norm = np.sum(p0*p1)*FS
-        return self._norm
-
+                self.contents.append(GatePulse(gate=self, chip=chip **item_dict))
     @property
     def tlength(self):
         return max([p.t0+p.twidth for p in self.get_pulses()]) - min([p.t0 for p in self.get_pulses()])
@@ -153,48 +150,65 @@ class Gate:
             if isinstance(item, GatePulse):
                 itemcpy = copy.deepcopy(item)
                 itemcpy.t0 += gate_t0
+                itemcpy.gate = self
+                itemcpy.chip = self.chip
                 pulselist.append(itemcpy)
             else:
                 pulselist.extend(self.chip.gates[item['gate']].get_pulses(gate_t0))
         return pulselist
+
+    def dereference_gates(self):
+        self.contents = self.get_pulses()
 
 
     def pcalc(self, dt=0, padd=0, freq=None): #todo: what is this?
         return np.array([p.pcarrier+2*np.pi*(freq  if freq else p.fcarrier)*(dt+p.t0)+padd for p  in  self.pulses])
 
 class GatePulse:
-    def __init__(self, gate, cfg_dict):
+    """
+    Class describing a calibrated quantum gate. 
+
+    Attributes
+    ----------
+
+    Methods
+    -------
+    """
+    def __init__(self, pcarrier, fcarrier, dest=None, amp=None, t0=None, twidth=None, env_desc=None, gate=None, chip=None):
         '''
         t0: pulse start time relative to the gate start time
         twidth: pulse env function parameter for the pulse width
-        patch: patch time added before the pulse, during this time, the pulse envelope value is 0
-        tlength: pulse length including patch time, so that include the zeros at the begining, tlength=twidth+patch*dt
         '''
-        #self.gate=gate #todo: do we need this reference?
-        #self.chip=gate.chip
-        self.dest=None 
-        self.amp = 0
-        self.twidth = 0
-        self.t0 = 0
-        for k in cfg_dict:
-            if k in ['amp', 'twidth', 't0', 'pcarrier', 'dest', 'fcarrier']: #do we want this restriction? what about other alphas?
-                try:
-                    v=eval(str(cfg_dict[k]))
-                except Exception as e:
-                    v=cfg_dict[k]
-                setattr(self, k, v)
-            elif k in ['env']: #should we require an envelope?
-                setattr(self, k, Envelop(cfg_dict[k]))
+        self.dest = dest 
+        self.fcarrier = fcarrier
+        self.pcarrier = pcarrier
+        self.chip = chip
+        self.gate = gate 
+        if env_desc is not None: 
+            self.env = Envelope(env_desc)
+        if amp is not None: 
+            self.amp = amp
+        if t0 is not None: 
+            self.t0 = t0
+        if twidth is not None: 
+            self.twidth = twidth
 
-    def pulseval(self, dt, flo=0, mod=True):
-        fcarrier = self.chip.get_qubit_freq(self.fcarrier)
-        fif = 0 if self.fcarrier==0 else fcarrier - flo
-        if self.dest is not None:
-            tv=self.env.env_val(dt=dt, twidth=self.twidth, fif=0*fif, pini=self.pcarrier, amp=self.amp, mod=mod)
-            tv.tstart(self.tstart)
-        else:
-            tv=None
-        return tv
+    def get_if_samples(self, dt, flo=0):
+        pass
+        #if isinstance(fcarrier, str):
+        #    if self.chip is not None:
+        #        fcarrier = self.chip.get_qubit_freq(self.fcarrier)
+        #    else:
+        #        raise Exception('Cannot resolve refernce to {}; add attribute for parent chip'.format(fcarrier))
+        #fif = 0 if self.fcarrier==0 else fcarrier - flo
+        #if self.dest is not None:
+        #    tv=self.env.env_val(dt=dt, twidth=self.twidth, fif=0*fif, pini=self.pcarrier, amp=self.amp, mod=mod)
+        #    tv.tstart(self.tstart)
+        #else:
+        #    tv=None
+        #return tv
+    def get_env_samples(self, dt):
+        return self.env.get_samples(dt, self.twidth, self.amp)
 
     @property
     def tend(self):
@@ -204,12 +218,14 @@ class GatePulse:
     def cfg_dict(self):
         #cfg = vars(self)
         cfg = {}
-        cfg['amp'] = self.amp
-        cfg['twidth'] = self.twidth
-        cfg['t0'] = self.t0
-        cfg['pcarrier'] = self.pcarrier
-        cfg['dest'] = self.dest
         cfg['fcarrier'] = self.fcarrier
+        cfg['pcarrier'] = self.pcarrier
+        if hasattr(self, 'dest'):
+            cfg['dest'] = self.dest
+        if hasattr(self, 't0'):
+            cfg['t0'] = self.t0
+        if hasattr(self, 'amp'):
+            cfg['amp'] = self.amp
         if hasattr(self, 'env'):
             cfg['env'] = self.env.env_desc
         return cfg
@@ -218,6 +234,7 @@ class GatePulse:
         return not self.__eq__(other)
 
     def __eq__(self, other):
+        #todo: why don't we compare fcarrier and pcarrier here
         ampeq=False
         twidtheq=False
         desteq=False
@@ -253,67 +270,31 @@ class GatePulse:
             overlap=other.tend() < self.tstart
         return overlap
 
-class Envelop:
+
+class Envelope:
     def __init__(self, env_desc):
         if not isinstance(env_desc, list):
             env_desc=[env_desc]
         self.env_desc=copy.deepcopy(env_desc)
 
-    def env_val(self, dt, twidth, fif=0, pini=0, amp=1.0, mod=True):
-        #todo: what is vbase? and why would we have more than one env per pulse
-        vbase=None 
-        ti=None
-        twidth=round(twidth, 10)
-        for env in self.env_desc:
-            if vbase is None:
-                ti, vbase = getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['cfg_dict'])
-            else:
-                ti1, vbasenew = (getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['cfg_dict']))
-                if any(ti!=ti1):
-                    print('different time!!?')
-                vbase = vbase*vbasenew
-        if mod:
-            vlo = np.cos(2*np.pi*fif*ti+pini)
-        else:
-            vlo = 1
+    def get_samples(self, dt, twidth, amp=1.0):
+        samples = None
+        tlist = None
+        twidth = round(twidth, 10) #todo: why do we round this?
 
-        val=amp*vlo*vbase
-        tv=c_tv(ti, val)
-        return tv
+        for env in self.env_desc:
+            ti, vali = getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['cfg_dict'])
+            if samples:
+                samples *= vali
+                assert np.all(ti==tlist)
+            else:
+                samples = vali
+                tlist = ti
+
+        samples *= amp
+
+        return tlist, samples
+
     def __eq__(self, other):
         return sorted(self.env_desc)==sorted(other.env_desc)
 
-class c_tv:
-    #todo: what is this class?
-    def __init__(self, t, val):
-        self.tv={}
-        if (len(t)==len(val)):
-            for i in range(len(t)):
-                self.append(t[i], val[i])
-#        print t
-#        print self.tv
-        self.val=val
-    def append(self, t, val):
-        if t in self.tv:
-            self.tv[t]+=val
-        else:
-            self.tv[t]=val
-    def add(self, tval):
-        for it in tval.tv:
-            self.append(it, tval.tv[it])
-    def tstart(self, tstart):
-        newtv=dict((t+tstart, val) for (t, val) in self.tv.items())
-        self.tv=newtv
-    def tvval(self):
-        self.t=[]
-        self.val=[]
-        for i in sorted(self.tv):
-            self.t.append(i)
-            self.val.append(self.tv[i])
-        return(np.array(self.t), np.array(self.val))
-    def nvval(self, dt):
-        t, v=self.tvval()
-        n=np.array([int(round(it/dt, 10)) for it in t])
-
-#        return (np.array(np.round(t/dt)).astype(int), v)
-        return (n, v)

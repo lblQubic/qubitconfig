@@ -1,6 +1,6 @@
 from setuptools import setup
 
-setup(name='qubitcfg',
+setup(name='qubitconfig',
         packages=['qubitconfig'],
         install_requires=[
             'numpy'],
