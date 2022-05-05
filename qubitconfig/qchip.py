@@ -167,7 +167,7 @@ class Gate:
             if 'gate' in item_dict.keys():
                 self.contents.append(item_dict)
             else:
-                self.contents.append(GatePulse(gate=self, chip=chip **item_dict))
+                self.contents.append(GatePulse(gate=self, chip=chip, **item_dict))
     @property
     def tlength(self):
         return max([p.t0+p.twidth for p in self.get_pulses()]) - min([p.t0 for p in self.get_pulses()])
@@ -212,7 +212,7 @@ class GatePulse:
     Methods
     -------
     """
-    def __init__(self, pcarrier, fcarrier, dest=None, amp=None, t0=None, twidth=None, env_desc=None, gate=None, chip=None):
+    def __init__(self, pcarrier, fcarrier, dest=None, amp=None, t0=None, twidth=None, env=None, gate=None, chip=None):
         '''
         t0: pulse start time relative to the gate start time
         twidth: pulse env function parameter for the pulse width
@@ -222,8 +222,8 @@ class GatePulse:
         self.pcarrier = pcarrier
         self.chip = chip
         self.gate = gate 
-        if env_desc is not None: 
-            self.env = Envelope(env_desc)
+        if env is not None: 
+            self.env = Envelope(env)
         if amp is not None: 
             self.amp = amp
         if t0 is not None: 
