@@ -281,6 +281,10 @@ class GatePulse:
             return self.chip.get_qubit_freq(self._fcarrier)
         else:
             return self._fcarrier
+    
+    @fcarrier.setter
+    def fcarrier(self, fcarrier):
+        self._fcarrier = fcarrier 
 
     @property
     def cfg_dict(self):
