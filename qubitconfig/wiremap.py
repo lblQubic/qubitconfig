@@ -22,7 +22,7 @@ class Wiremap:
         """
         if isinstance(cfg, str):
             with open(cfg) as f:
-                cfg = json.load(cfg)
+                cfg = json.load(f)
 
         replace_json_nones(cfg)
         

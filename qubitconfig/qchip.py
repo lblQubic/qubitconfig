@@ -44,7 +44,7 @@ class QChip:
     def __init__(self, cfg_dict):
         if isinstance(cfg_dict, str):
             with open(cfg_dict) as f:
-                cfg_dict = json.load(cfg_dict)
+                cfg_dict = json.load(f)
 
         self.qubits={}
         for k, v in cfg_dict['Qubits'].items():
@@ -352,7 +352,7 @@ class Envelope:
     def get_samples(self, dt, twidth, amp=1.0):
         samples = None
         tlist = None
-        twidth = round(twidth, 10) #todo: why do we round this?
+        #twidth = round(twidth, 10) #todo: why do we round this?
 
         for env in self.env_desc:
             ti, vali = getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['paradict'])
