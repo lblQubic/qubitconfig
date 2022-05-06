@@ -294,6 +294,8 @@ class GatePulse:
         cfg['pcarrier'] = self.pcarrier
         if hasattr(self, 'dest'):
             cfg['dest'] = self.dest
+        if hasattr(self, 'twidth'):
+            cfg['twidth'] = self.twidth
         if hasattr(self, 't0'):
             cfg['t0'] = self.t0
         if hasattr(self, 'amp'):
