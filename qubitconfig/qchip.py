@@ -142,8 +142,8 @@ class Gate:
     Attributes
     ----------
         contents : list
-            List of components that make up the gate. These can be either 
-            GatePulse objects or references to other Gates in parent QChip
+            List of components that make up the gate. These are GatePulse objects or
+            dictionaries describing either GatePulse objects or references to other Gates in parent QChip
         chip : QChip
             Reference to parent QChip object (can be None). This is used to dereference 
             any Gate objects in 'contents' when returning pulses.
@@ -163,11 +163,16 @@ class Gate:
         self.name=name
         self.contents=[]
 
-        for item_dict in contents:
-            if 'gate' in item_dict.keys():
-                self.contents.append(item_dict)
+        for item in contents:
+            if isinstance(item, GatePulse):
+                gpulse = copy.deepcopy(item)
+                gpulse.chip = self.chip
+                gpulse.gate = self
+                self.contents.append(gpulse) 
+            elif 'gate' in item.keys():
+                self.contents.append(item)
             else:
-                self.contents.append(GatePulse(gate=self, chip=chip, **item_dict))
+                self.contents.append(GatePulse(gate=self, chip=chip, **item))
     @property
     def tlength(self):
         return max([p.t0+p.twidth for p in self.get_pulses()]) - min([p.t0 for p in self.get_pulses()])
@@ -206,6 +211,33 @@ class Gate:
             else:
                 pulselist.extend(self.chip.gates[item['gate']].get_pulses(gate_t0))
         return pulselist
+
+    def get_modified_copy(self, modlist):
+        if len(modlist) != len(self.contents):
+            raise Exception('modlist must have an entry for each pulse')
+        modcontents = []
+        for i in range(len(self.contents)):
+            if modlist[i] is None:
+                modcontents.append(copy.deepcopy(self.contents[i]))
+            else:
+                if isinstance(self.contents[i], GatePulse):
+                    modpulse = copy.deepcopy(self.contents[i])
+                    for k, v in modlist[i].items():
+                        setattr(modpulse, k, v)
+                    modcontents.append(modpulse)
+                else: #this is a gate. todo: how to distinguish between mod to t0 and pulses?
+                    raise Exception('recursive gate mods not yet supported')
+                    if 't0' in modlist[i].keys():
+                        t0 = modlist[i]['t0']
+                        del(modlist[i]['t0'])
+                    else:
+                        t0 = self.contents[i]['t0']
+                    tempgate = self.contents[i]['gate'].get_modified_copy(modlist[i])
+                    modcontents.append(tempgate.get_pulses(), t0)
+
+        return Gate(modcontents, self.chip, None)
+
+
 
     #def dereference(self):
     #    self.contents = self.get_pulses()
