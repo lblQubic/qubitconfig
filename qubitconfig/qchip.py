@@ -213,11 +213,26 @@ class Gate:
         return pulselist
 
     def get_modified_copy(self, modlist):
+        """
+        Returns a copy of the gate with pulses modified according to modlist.
+        Original Gate remains unchanged.
+
+        Parameters
+        ----------
+            modlist : list
+                List of dictionaries (one per pulse) -- or None -- containing 
+                pulse attributes to modify
+        
+        Returns
+        -------
+            Gate
+                modified gate object
+        """
         if len(modlist) != len(self.contents):
             raise Exception('modlist must have an entry for each pulse')
         modcontents = []
         for i in range(len(self.contents)):
-            if modlist[i] is None:
+            if modlist[i] is None or modlist[i] == {}:
                 modcontents.append(copy.deepcopy(self.contents[i]))
             else:
                 if isinstance(self.contents[i], GatePulse):
@@ -226,21 +241,22 @@ class Gate:
                         setattr(modpulse, k, v)
                     modcontents.append(modpulse)
                 else: #this is a gate. todo: how to distinguish between mod to t0 and pulses?
-                    raise Exception('recursive gate mods not yet supported')
-                    if 't0' in modlist[i].keys():
-                        t0 = modlist[i]['t0']
-                        del(modlist[i]['t0'])
-                    else:
-                        t0 = self.contents[i]['t0']
-                    tempgate = self.contents[i]['gate'].get_modified_copy(modlist[i])
-                    modcontents.append(tempgate.get_pulses(), t0)
+                    assert isinstance(self.contents[i], dict)
+                    modgatedict = copy.deepcopy(self.contents[i])
+                    for k,v in modlist[i].items():
+                        if k == 't0' or k == 'gate':
+                            modgatedict[k] = v
+                        else:
+                            raise Exception('{} is a gate. To copy and modify internals use dereference() first'.format(self.contents[i]))
+                    modcontents.append(modgatedict)
+                            
 
         return Gate(modcontents, self.chip, None)
 
 
 
-    #def dereference(self):
-    #    self.contents = self.get_pulses()
+    def dereference(self):
+        self.contents = self.get_pulses()
 
 
     #def pcalc(self, dt=0, padd=0, freq=None): #todo: what is this?
@@ -248,7 +264,7 @@ class Gate:
 
 class GatePulse:
     """
-    Class describing a calibrated quantum gate. 
+    Class describing an RF pulse. 
 
     Attributes
     ----------
