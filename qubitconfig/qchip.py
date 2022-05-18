@@ -170,7 +170,7 @@ class Gate:
                 gpulse.gate = self
                 self.contents.append(gpulse) 
             elif 'gate' in item.keys():
-                self.contents.append(item)
+                self.contents.append(copy.deepcopy(item))
             else:
                 self.contents.append(GatePulse(gate=self, chip=chip, **item))
     @property
@@ -253,7 +253,8 @@ class Gate:
 
         return Gate(modcontents, self.chip, None)
 
-
+    def copy(self):
+        return Gate(self.contents, self.chip, None)
 
     def dereference(self):
         self.contents = self.get_pulses()
