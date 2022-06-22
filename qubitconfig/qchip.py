@@ -161,6 +161,7 @@ class Gate:
     def __init__(self, contents, chip, name):
         self.chip=chip
         self.name=name
+        self._isread = None
         self.contents=[]
 
         for item in contents:
@@ -186,6 +187,26 @@ class Gate:
             else:
                 cfg.append(item)
         return cfg
+
+    @property
+    def isread(self):
+        if self._isread is None:
+            return np.any(np.array([pulse.dest.split('.')[1] == 'read' for pulse in self.get_pulses()]))
+        else:
+            return self._isread
+
+    @isread.setter
+    def isread(self, isread):
+        self._isread = isread
+
+    def get_norm(self, dt, ADC_FULLSCALE=32767):
+        if self.isread:
+            pulses = self.get_pulses()
+            if len(pulses) != 2:
+                raise Exception('Norm calculation assumes 1 up and 1 downconversion pulse')
+            return np.sum(np.abs(ADC_FULLSCALE*pulses[0].get_env_samples(dt)[1]*pulses[1].get_env_samples(dt)[1]))
+        else:
+            raise Exception('Norm only implemented for readout-type gates. If this is a readout gate, set isread attribute')
 
     def get_pulses(self, gate_t0=0):
         """
@@ -330,6 +351,13 @@ class GatePulse:
             return self.chip.get_qubit_freq(self._fcarrier)
         else:
             return self._fcarrier
+
+    @property
+    def fcarriername(self):
+        if isinstance(self._fcarrier, str):
+            return self._fcarrier
+        else:
+            return None
     
     @fcarrier.setter
     def fcarrier(self, fcarrier):
