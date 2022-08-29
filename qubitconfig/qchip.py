@@ -121,6 +121,15 @@ class QChip:
     def cfg_dict(self):
         return {'Qubits': self.qubit_dict, 'Gates': self.gate_dict}
 
+    def update(self, keys, value):
+        if keys[0].lower() == 'qubits':
+            assert len(keys)==3
+            setattr(self.qubits[keys[1]], keys[2], value)
+        elif keys[0].lower() == 'gates':
+            assert len(keys)>=3
+            gate = self.gates[keys[1]]
+            gate.update(keys[2:], value)
+
     def add_gate(self, name, gate):
         """
         Add a new gate. 'gate' can be either Gate object or list of 
@@ -198,6 +207,25 @@ class Gate:
     @isread.setter
     def isread(self, isread):
         self._isread = isread
+
+    def update_dict(self, udict):
+        for k, v in self.udict.items():
+            self.update(k, v)
+
+    def update(self, keys, value):
+        assert isinstance(keys[0], int)
+        content = self.contents[keys[0]]
+        if isinstance(content, dict):
+            keys = keys[1:]
+            for i in range(len(keys)):
+                if i == len(keys) - 1:
+                    content[keys[i]] = value
+                else:
+                    content = content[keys[i]]
+        elif isinstance(content, GatePulse):
+            content.update(keys[1:], value)
+        else:
+            raise Exception('unsupported type')
 
     def get_norm(self, dt, ADC_FULLSCALE=32767):
         if self.isread:
@@ -327,6 +355,17 @@ class GatePulse:
         #else:
         #    tv=None
         #return tv
+    def update(self, keys, value):
+        if keys[0] == 'env':
+            if hasattr(self, 'env'):
+                self.env.update(keys[1:], value)
+            else:
+                self.env = Envelope(value)
+        else:
+            assert len(keys) == 1
+            setattr(self, keys[0], value)
+        
+
     def get_env_samples(self, dt):
         """
         Returns the pulse envelope sampled at dt
@@ -431,7 +470,7 @@ class Envelope:
     def get_samples(self, dt, twidth, amp=1.0):
         samples = None
         tlist = None
-        #twidth = round(twidth, 10) #todo: why do we round this?
+        twidth = round(twidth, 10) #todo: why do we round this?
 
         for env in self.env_desc:
             ti, vali = getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['paradict'])
@@ -444,7 +483,11 @@ class Envelope:
 
         samples *= amp
 
-        return tlist, samples
+        return tlist, samples   
+
+    def update(self, keys, value):
+        assert len(keys) == 1
+        setattr(self, keys[0], value)
 
     def __eq__(self, other):
         return sorted(self.env_desc)==sorted(other.env_desc)
