@@ -121,7 +121,32 @@ class QChip:
     def cfg_dict(self):
         return {'Qubits': self.qubit_dict, 'Gates': self.gate_dict}
 
-    def update(self, keys, value):
+    def update(self, keys_or_dict, value=None):
+        """
+        Update a qchip parameter using a tuple to list nested 
+        attributes. E.g. to update the frequency of qubit Q0, use 
+        ('Qubits', 'Q0', 'freq'). The function has two modes; either a set
+        of key/value pairs can be given directly as a dict, or a 
+        single key/value pair can be passed as separate parameters.
+
+        Parameters
+        ----------
+            keys_or_dict: tuple, dict
+                if tuple, then attribute access tuple; e.g.
+                ('Qubits', 'Q0', 'freq').
+                if dict, then key/value update dict; e.g.
+                {('Qubits', 'Q0', 'freq'): 5.5e9}
+            value: optional
+                value to assign qchip parameter, if prev
+                arg was a tuple of keys
+        """
+        if isinstance(keys_or_dict, tuple):
+            self._update(keys_or_dict, value)
+        elif isinstance(keys_or_dict, dict):
+            for k, v in keys_or_dict.items():
+                self._update(k, v)
+
+    def _update(self, keys, value):
         if keys[0].lower() == 'qubits':
             assert len(keys)==3
             setattr(self.qubits[keys[1]], keys[2], value)
@@ -207,10 +232,6 @@ class Gate:
     @isread.setter
     def isread(self, isread):
         self._isread = isread
-
-    def update_dict(self, udict):
-        for k, v in self.udict.items():
-            self.update(k, v)
 
     def update(self, keys, value):
         assert isinstance(keys[0], int)
