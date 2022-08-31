@@ -6,6 +6,7 @@ import copy
 import json
 import numpy as np
 import re
+import ipdb
 
 class Qubit:
     """
@@ -233,6 +234,15 @@ class Gate:
     def isread(self, isread):
         self._isread = isread
 
+    def get_updated_copy(self, key_tuples, values):
+        gate = self.copy()
+        if isinstance(key_tuples, tuple):
+            key_tuples = [key_tuples]
+            values = [values]
+        for key_tuple, value in zip(key_tuples, values):
+            gate.update(key_tuple, value)
+        return gate
+
     def update(self, keys, value):
         assert isinstance(keys[0], int)
         content = self.contents[keys[0]]
@@ -286,6 +296,7 @@ class Gate:
         """
         Returns a copy of the gate with pulses modified according to modlist.
         Original Gate remains unchanged.
+        todo: deprecate this and just use update, and or combine into one method
 
         Parameters
         ----------
@@ -308,7 +319,7 @@ class Gate:
                 if isinstance(self.contents[i], GatePulse):
                     modpulse = copy.deepcopy(self.contents[i])
                     for k, v in modlist[i].items():
-                        setattr(modpulse, k, v)
+                        modpulse.update(k, v)
                     modcontents.append(modpulse)
                 else: #this is a gate. todo: how to distinguish between mod to t0 and pulses?
                     assert isinstance(self.contents[i], dict)
@@ -324,7 +335,18 @@ class Gate:
         return Gate(modcontents, self.chip, None)
 
     def copy(self):
-        return Gate(self.contents, self.chip, None)
+        """
+        returns a deepcopy of self.contents (constituent pulses
+        and gate refs), and a reference to the parent chip
+        """
+        cpycontents = []
+        for content in self.contents:
+            if isinstance(content, GatePulse):
+                cpycontents = content.copy()
+            else:
+                cpycontents = copy.deepcopy(content)
+
+        return Gate(cpycontents, self.chip, None)
 
     def dereference(self):
         self.contents = self.get_pulses()
@@ -481,6 +503,11 @@ class GatePulse:
             overlap=other.tend() < self.tstart
         return overlap
 
+    def copy(self):
+        cpy = copy.deepcopy(self)
+        cpy.gate = self.gate
+        cpy.chip = self.chip
+
 
 class Envelope:
     def __init__(self, env_desc):
@@ -507,8 +534,12 @@ class Envelope:
         return tlist, samples   
 
     def update(self, keys, value):
-        assert len(keys) == 1
-        setattr(self, keys[0], value)
+        env_desc = self.env_desc
+        for i, key in enumerate(keys):
+            if i == len(keys) - 1:
+                env_desc[key] = value
+            else:
+                env_desc = env_desc[key]
 
     def __eq__(self, other):
         return sorted(self.env_desc)==sorted(other.env_desc)
