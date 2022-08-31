@@ -342,9 +342,9 @@ class Gate:
         cpycontents = []
         for content in self.contents:
             if isinstance(content, GatePulse):
-                cpycontents = content.copy()
+                cpycontents.append(content.copy())
             else:
-                cpycontents = copy.deepcopy(content)
+                cpycontents.append(copy.deepcopy(content))
 
         return Gate(cpycontents, self.chip, None)
 
@@ -507,6 +507,7 @@ class GatePulse:
         cpy = copy.deepcopy(self)
         cpy.gate = self.gate
         cpy.chip = self.chip
+        return cpy
 
 
 class Envelope:
