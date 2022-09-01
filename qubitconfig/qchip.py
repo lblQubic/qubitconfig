@@ -234,12 +234,16 @@ class Gate:
     def isread(self, isread):
         self._isread = isread
 
-    def get_updated_copy(self, key_tuples, values):
+    def get_updated_copy(self, keytup_or_dict, value=None):
         gate = self.copy()
-        if isinstance(key_tuples, tuple):
-            key_tuples = [key_tuples]
-            values = [values]
-        for key_tuple, value in zip(key_tuples, values):
+        if isinstance(keytup_or_dict, tuple):
+            updatedict = {keytup_or_dict : value}
+        elif isinstance(keytup_or_dict, dict):
+            updatedict = keytup_or_dict
+        else:
+            raise TypeError('unsupported type')
+
+        for key_tuple, value in updatedict.items():
             gate.update(key_tuple, value)
         return gate
 
