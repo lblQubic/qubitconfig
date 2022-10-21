@@ -297,6 +297,9 @@ class Gate:
                 pulselist.extend(self.chip.gates[item['gate']].get_pulses(gate_t0))
         return pulselist
 
+    def remove_virtualz(self):
+        self.contents = [item for item in self.contents if hasattr(item, 'env')]
+
     def get_modified_copy(self, modlist):
         """
         Returns a copy of the gate with pulses modified according to modlist.
@@ -351,7 +354,7 @@ class Gate:
             else:
                 cpycontents.append(copy.deepcopy(content))
 
-        return Gate(cpycontents, self.chip, None)
+        return Gate(cpycontents, self.chip, self.name + '_cpy')
 
     def dereference(self):
         self.contents = self.get_pulses()
@@ -377,7 +380,11 @@ class GatePulse:
         '''
         self.dest = dest 
         self._fcarrier = fcarrier
-        self.pcarrier = pcarrier
+        if isinstance(pcarrier, str):
+            pcarrier = pcarrier.replace('numpy', 'np')
+            self.pcarrier = eval(pcarrier)
+        else:
+            self.pcarrier = pcarrier
         self.chip = chip
         self.gate = gate 
         if env is not None: 
