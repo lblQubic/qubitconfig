@@ -298,7 +298,7 @@ class Gate:
         return pulselist
 
     def remove_virtualz(self):
-        self.contents = [item for item in self.contents if hasattr(item, 'env')]
+        self.contents = [item for item in self.contents if not item.is_zphase()]
 
     def get_modified_copy(self, modlist):
         """
@@ -438,6 +438,10 @@ class GatePulse:
     @property
     def tend(self):
         return self.tstart + self.twidth
+
+    @property
+    def is_zphase(self):
+        return not hasattr(self, 'env')
 
     @property
     def fcarrier(self):
