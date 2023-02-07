@@ -298,7 +298,7 @@ class Gate:
         return pulselist
 
     def remove_virtualz(self):
-        self.contents = [item for item in self.contents if not item.is_zphase()]
+        self.contents = [item for item in self.contents if not item.is_zphase]
 
     def get_modified_copy(self, modlist):
         """
