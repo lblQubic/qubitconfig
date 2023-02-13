@@ -8,6 +8,7 @@ import numpy as np
 import re
 import ipdb
 
+VALID_PULSE_KEYS = ['pcarrier', 'fcarrier', 'dest', 't0', 'env', 'amp', 'twidth']
 
 class Qubit:
     """
@@ -380,11 +381,7 @@ class GatePulse:
         '''
         self.dest = dest 
         self._fcarrier = fcarrier
-        if isinstance(pcarrier, str):
-            pcarrier = pcarrier.replace('numpy', 'np')
-            self.pcarrier = eval(pcarrier)
-        else:
-            self.pcarrier = pcarrier
+        self._pcarrier = pcarrier
         self.chip = chip
         self.gate = gate 
         if env is not None: 
@@ -444,6 +441,13 @@ class GatePulse:
         return not hasattr(self, 'env')
 
     @property
+    def pcarrier(self):
+        if isinstance(self._pcarrier, str):
+            return eval(self._pcarrier.replace('numpy', 'np'))
+        else:
+            return self._pcarrier
+
+    @property
     def fcarrier(self):
         if isinstance(self._fcarrier, str):
             return self.chip.get_qubit_freq(self._fcarrier)
@@ -466,7 +470,7 @@ class GatePulse:
         #cfg = vars(self)
         cfg = {}
         cfg['fcarrier'] = self._fcarrier
-        cfg['pcarrier'] = self.pcarrier
+        cfg['pcarrier'] = self._pcarrier
         if hasattr(self, 'dest'):
             cfg['dest'] = self.dest
         if hasattr(self, 'twidth'):
@@ -481,31 +485,6 @@ class GatePulse:
 
     def __ne__(self, other):
         return not self.__eq__(other)
-
-   # def __eq__(self, other):
-   #     #todo: why don't we compare fcarrier and pcarrier here
-   #     ampeq=False
-   #     twidtheq=False
-   #     desteq=False
-   #     enveq=False
-   #     if hasattr(self, 'env'):
-   #         if hasattr(other, 'env'):
-   #             if self.env==other.env:
-   #                 enveq=True
-   #     if hasattr(self, 'amp'):
-   #         if hasattr(other, 'amp'):
-   #             if self.amp==other.amp:
-   #                 ampeq=True
-   #     if hasattr(self, 'twidth'):
-   #         if hasattr(other, 'twidth'):
-   #             if self.twidth==other.twidth:
-   #                 twidtheq=True
-   #     if hasattr(self, 'dest'):
-   #         if hasattr(other, 'dest'):
-   #             if self.dest==other.dest:
-   #                 desteq=True
-#  #      return all([self.amp==other.amp, self.twidth==other.twidth, self.dest==other.dest, self.env==other.env])
-   #     return all([ampeq, twidtheq, desteq, enveq])
 
     def __hash__(self):
         #return hash(str(self.cfg_dict))
@@ -559,5 +538,26 @@ class Envelope:
                 env_desc = env_desc[key]
 
     def __eq__(self, other):
-        return sorted(self.env_desc)==sorted(other.env_desc)
+        return sorted(self.env_desc) == sorted(other.env_desc)
+
+
+def convert_legacy_json(cfg_dict):
+    if isinstance(cfg_dict, str):
+        with open(cfg_dict) as f:
+            cfg_dict = json.load(f)
+
+    for gatename, gate in cfg_dict['Gates'].items():
+        for i, pulse in enumerate(gate):
+            # change gate strings to dict format
+            if isinstance(pulse, str):
+                gate[i] = {'gate': pulse}
+            # remove extraneous keys
+            else:
+                newpulse = {}
+                for key, value in pulse.items():
+                    if key in VALID_PULSE_KEYS:
+                        newpulse[key] = value
+                gate[i] = newpulse
+
+    return cfg_dict
 
