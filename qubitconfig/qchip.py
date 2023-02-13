@@ -6,7 +6,10 @@ import copy
 import json
 import numpy as np
 import re
-import ipdb
+try:
+    import ipdb
+except ImportError:
+    print('warning: could not import ipdb')
 
 VALID_PULSE_KEYS = ['pcarrier', 'fcarrier', 'dest', 't0', 'env', 'amp', 'twidth']
 
