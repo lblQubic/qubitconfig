@@ -450,6 +450,10 @@ class GatePulse:
         else:
             return self._pcarrier
 
+    @pcarrier.setter
+    def pcarrier(self, pcarrier):
+        self._pcarrier = pcarrier
+
     @property
     def fcarrier(self):
         if isinstance(self._fcarrier, str):
