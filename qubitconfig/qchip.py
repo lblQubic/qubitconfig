@@ -240,7 +240,10 @@ class Gate:
         self._isread = isread
 
     def get_updated_copy(self, keytup_or_dict, value=None):
+        t0 = time.time()
         gate = self.copy()
+        t1 = time.time()
+        print('copy time {}'.format(t1 - t0))
         if isinstance(keytup_or_dict, tuple):
             updatedict = {keytup_or_dict : value}
         elif isinstance(keytup_or_dict, dict):
@@ -250,6 +253,8 @@ class Gate:
 
         for key_tuple, value in updatedict.items():
             gate.update(key_tuple, value)
+        t2 = time.time()
+        print('update time {}'.format(t2 - t1))
         return gate
 
     def update(self, keys, value):
@@ -292,7 +297,7 @@ class Gate:
         pulselist = []
         for item in self.contents:
             if isinstance(item, GatePulse):
-                itemcpy = copy.deepcopy(item)
+                itemcpy = item.copy()
                 itemcpy.t0 += gate_t0
                 itemcpy.gate = self
                 itemcpy.chip = self.chip
@@ -353,10 +358,10 @@ class Gate:
         """
         cpycontents = []
         for content in self.contents:
-            if isinstance(content, GatePulse):
+            if isinstance(content, GatePulse) or isinstance(content, dict):
                 cpycontents.append(content.copy())
             else:
-                cpycontents.append(copy.deepcopy(content))
+                raise TypeError
 
         return Gate(cpycontents, self.chip, self.name + '_cpy')
 
@@ -506,17 +511,24 @@ class GatePulse:
         return overlap
 
     def copy(self):
-        cpy = copy.deepcopy(self)
-        cpy.gate = self.gate
-        cpy.chip = self.chip
-        return cpy
+        return GatePulse(**self.cfg_dict, gate=self.gate, chip=self.chip)
 
 
 class Envelope:
     def __init__(self, env_desc):
         if not isinstance(env_desc, list):
             env_desc=[env_desc]
-        self.env_desc=copy.deepcopy(env_desc)
+        #self.env_desc=copy.deepcopy(env_desc)
+        self.env_desc = []
+        for env in env_desc:
+            envdict = {}
+            for k, v in env.items():
+                if isinstance(v, dict):
+                    envdict[k] = v.copy()
+                else:
+                    envdict[k] = v
+            self.env_desc.append(envdict)
+
 
     def get_samples(self, dt, twidth, amp=1.0):
         samples = None
