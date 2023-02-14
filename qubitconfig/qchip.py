@@ -243,7 +243,6 @@ class Gate:
         t0 = time.time()
         gate = self.copy()
         t1 = time.time()
-        print('copy time {}'.format(t1 - t0))
         if isinstance(keytup_or_dict, tuple):
             updatedict = {keytup_or_dict : value}
         elif isinstance(keytup_or_dict, dict):
@@ -254,7 +253,6 @@ class Gate:
         for key_tuple, value in updatedict.items():
             gate.update(key_tuple, value)
         t2 = time.time()
-        print('update time {}'.format(t2 - t1))
         return gate
 
     def update(self, keys, value):
@@ -391,15 +389,28 @@ class GatePulse:
         self._fcarrier = fcarrier
         self._pcarrier = pcarrier
         self.chip = chip
-        self.gate = gate 
-        if env is not None: 
-            self.env = Envelope(env)
+        self.gate = gate
+        if env is not None and not isinstance(env, list):
+            env = [env]
+        self._env_desc = env
+        self._env = None
+        #if env is not None: 
+        #    self.env = Envelope(env)
         if amp is not None: 
             self.amp = amp
         if t0 is not None: 
             self.t0 = t0
         if twidth is not None: 
             self.twidth = twidth
+
+    @property
+    def env(self):
+        """
+        try lazy creation/loading of envelope
+        """
+        if not self._env and self._env_desc is not None:
+            self._env = Envelope(self._env_desc)
+        return self._env
 
     def get_if_samples(self, dt, flo=0):
         pass
@@ -446,7 +457,7 @@ class GatePulse:
 
     @property
     def is_zphase(self):
-        return not hasattr(self, 'env')
+        return self._env_desc is None
 
     @property
     def pcarrier(self):
@@ -475,7 +486,7 @@ class GatePulse:
     
     @fcarrier.setter
     def fcarrier(self, fcarrier):
-        self._fcarrier = fcarrier 
+        self._fcarrier = fcarrier
 
     @property
     def cfg_dict(self):
@@ -491,8 +502,8 @@ class GatePulse:
             cfg['t0'] = self.t0
         if hasattr(self, 'amp'):
             cfg['amp'] = self.amp
-        if hasattr(self, 'env'):
-            cfg['env'] = self.env.env_desc
+        if self._env_desc is not None:
+            cfg['env'] = self._env_desc
         return cfg
 
     def __ne__(self, other):
@@ -511,23 +522,24 @@ class GatePulse:
         return overlap
 
     def copy(self):
-        return GatePulse(**self.cfg_dict, gate=self.gate, chip=self.chip)
+        #return GatePulse(**self.cfg_dict, gate=self.gate, chip=self.chip)
+        return GatePulse(**self.cfg_dict)
 
 
 class Envelope:
     def __init__(self, env_desc):
         if not isinstance(env_desc, list):
             env_desc=[env_desc]
-        #self.env_desc=copy.deepcopy(env_desc)
-        self.env_desc = []
-        for env in env_desc:
-            envdict = {}
-            for k, v in env.items():
-                if isinstance(v, dict):
-                    envdict[k] = v.copy()
-                else:
-                    envdict[k] = v
-            self.env_desc.append(envdict)
+        self.env_desc=copy.deepcopy(env_desc)
+        #self.env_desc = []
+        #for env in env_desc:
+        #    envdict = {}
+        #    for k, v in env.items():
+        #        if isinstance(v, dict):
+        #            envdict[k] = v.copy()
+        #        else:
+        #            envdict[k] = v
+        #    self.env_desc.append(envdict)
 
 
     def get_samples(self, dt, twidth, amp=1.0):
