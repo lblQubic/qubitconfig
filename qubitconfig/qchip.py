@@ -582,6 +582,14 @@ def convert_legacy_json(cfg_dict):
             # change gate strings to dict format
             if isinstance(pulse, str):
                 gate[i] = {'gate': pulse}
+
+            #reformat virtualz pulse
+            elif 'env' not in pulse.keys():
+                zgate = {'gate': 'virtualz'}
+                zgate['freq'] = pulse['fcarrier']
+                zgate['phase'] = pulse['pcarrier']
+                gate[i] = zgate
+
             # remove extraneous keys
             else:
                 newpulse = {}
