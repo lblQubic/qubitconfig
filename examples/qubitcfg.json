@@ -1187,18 +1187,18 @@
         ],
         "Q7Y-90": [
             {
-                "pcarrier": "-numpy.pi/2.0",
-                "fcarrier": "Q7.freq",
-                "t0": 0.0
+                "gate": "virtualz",
+                "phase": "-numpy.pi/2.0",
+                "freq": "Q7.freq"
             },
             {   
                 "gate": "Q7X90",
                 "t0" : 0.0
             },
             {
+                "gate": "virtualz",
                 "pcarrier": "numpy.pi/2.0",
-                "fcarrier": "Q7.freq",
-                "t0": "3.200000e-08"
+                "fcarrier": "Q7.freq"
             }
         ],
         "Q5Y-90": [
