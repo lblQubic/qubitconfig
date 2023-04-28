@@ -11,7 +11,7 @@ try:
 except ImportError:
     print('warning: could not import ipdb')
 
-VALID_PULSE_KEYS = ['pcarrier', 'fcarrier', 'dest', 't0', 'env', 'amp', 'twidth']
+VALID_PULSE_KEYS = ['pcarrier', 'fcarrier', 'dest', 't0', 'env', 'amp', 'twidth', 'gate']
 
 class Qubit:
     """
@@ -225,7 +225,7 @@ class Gate:
     def cfg_dict(self):
         cfg = []
         for item in self.contents:
-            if isinstance(item, GatePulse):
+            if isinstance(item, GatePulse) or isinstance(item, VirtualZ):
                 cfg.append(item.cfg_dict)
             else:
                 cfg.append(item)
@@ -536,14 +536,22 @@ class VirtualZ:
             else:
                 self.freqname = freqname
 
-        if isinstance(phase, str):
-            self.phase = eval(phase.replace('numpy', 'np'))
-        else:
-            self.phase = phase
+        self._phase = phase
 
     @property
     def global_freqname(self):
         return self.qubit + '.' + self.freqname
+
+    @property
+    def phase(self):
+        if isinstance(self._phase, str):
+            return eval(self._phase.replace('numpy', 'np'))
+        else:
+            return self._phase
+
+    @property
+    def cfg_dict(self):
+        return {'gate': 'virtualz', 'freq': self.global_freqname, 'phase': self._phase}
 
 
 def convert_legacy_json(cfg_dict):
@@ -558,7 +566,7 @@ def convert_legacy_json(cfg_dict):
                 gate[i] = {'gate': pulse}
 
             #reformat virtualz pulse
-            elif 'env' not in pulse.keys():
+            elif 'env' not in pulse.keys() and 'gate' not in pulse.keys():
                 zgate = {'gate': 'virtualz'}
                 zgate['freq'] = pulse['fcarrier']
                 zgate['phase'] = pulse['pcarrier']
