@@ -210,6 +210,8 @@ class Gate:
                 gpulse.chip = self.chip
                 gpulse.gate = self
                 self.contents.append(gpulse) 
+            elif isinstance(item, VirtualZ):
+                self.contents.append(copy.deepcopy(item))
             elif 'gate' in item.keys():
                 if item['gate'] == 'virtualz':
                     self.contents.append(VirtualZ(item.pop('freq'), item.pop('phase'), item.pop('qubit', None)))
@@ -552,6 +554,9 @@ class VirtualZ:
     @property
     def cfg_dict(self):
         return {'gate': 'virtualz', 'freq': self.global_freqname, 'phase': self._phase}
+
+    def copy(self):
+        return copy.copy(self)
 
 
 def convert_legacy_json(cfg_dict):
