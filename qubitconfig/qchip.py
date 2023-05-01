@@ -375,6 +375,10 @@ class GatePulse:
             self._env = Envelope(self._env_desc)
         return self._env
 
+    @env.setter
+    def env(self, env):
+        self._env = env
+
     def update(self, keys, value):
         if keys[0] == 'env':
             if hasattr(self, 'env'):
