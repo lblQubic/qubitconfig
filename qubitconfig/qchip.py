@@ -11,7 +11,7 @@ try:
 except ImportError:
     print('warning: could not import ipdb')
 
-VALID_PULSE_KEYS = ['pcarrier', 'fcarrier', 'dest', 't0', 'env', 'amp', 'twidth']
+VALID_PULSE_KEYS = ['pcarrier', 'fcarrier', 'dest', 't0', 'env', 'amp', 'twidth', 'gate']
 
 class Qubit:
     """
@@ -210,8 +210,13 @@ class Gate:
                 gpulse.chip = self.chip
                 gpulse.gate = self
                 self.contents.append(gpulse) 
-            elif 'gate' in item.keys():
+            elif isinstance(item, VirtualZ):
                 self.contents.append(copy.deepcopy(item))
+            elif 'gate' in item.keys():
+                if item['gate'] == 'virtualz':
+                    self.contents.append(VirtualZ(item.pop('freq'), item.pop('phase'), item.pop('qubit', None)))
+                else:
+                    self.contents.append(copy.deepcopy(item))
             else:
                 self.contents.append(GatePulse(gate=self, chip=chip, **item))
     @property
@@ -222,7 +227,7 @@ class Gate:
     def cfg_dict(self):
         cfg = []
         for item in self.contents:
-            if isinstance(item, GatePulse):
+            if isinstance(item, GatePulse) or isinstance(item, VirtualZ):
                 cfg.append(item.cfg_dict)
             else:
                 cfg.append(item)
@@ -300,54 +305,14 @@ class Gate:
                 itemcpy.gate = self
                 itemcpy.chip = self.chip
                 pulselist.append(itemcpy)
+            elif isinstance(item, VirtualZ):
+                pulselist.append(item.copy())
             else:
                 pulselist.extend(self.chip.gates[item['gate']].get_pulses(gate_t0))
         return pulselist
 
     def remove_virtualz(self):
-        self.contents = [item for item in self.contents if not item.is_zphase]
-
-    def get_modified_copy(self, modlist):
-        """
-        Returns a copy of the gate with pulses modified according to modlist.
-        Original Gate remains unchanged.
-        todo: deprecate this and just use update, and or combine into one method
-
-        Parameters
-        ----------
-            modlist : list
-                List of dictionaries (one per pulse) -- or None -- containing 
-                pulse attributes to modify
-        
-        Returns
-        -------
-            Gate
-                modified gate object
-        """
-        if len(modlist) != len(self.contents):
-            raise Exception('modlist must have an entry for each pulse')
-        modcontents = []
-        for i in range(len(self.contents)):
-            if modlist[i] is None or modlist[i] == {}:
-                modcontents.append(copy.deepcopy(self.contents[i]))
-            else:
-                if isinstance(self.contents[i], GatePulse):
-                    modpulse = copy.deepcopy(self.contents[i])
-                    for k, v in modlist[i].items():
-                        modpulse.update(k, v)
-                    modcontents.append(modpulse)
-                else: #this is a gate. todo: how to distinguish between mod to t0 and pulses?
-                    assert isinstance(self.contents[i], dict)
-                    modgatedict = copy.deepcopy(self.contents[i])
-                    for k,v in modlist[i].items():
-                        if k == 't0' or k == 'gate':
-                            modgatedict[k] = v
-                        else:
-                            raise Exception('{} is a gate. To copy and modify internals use dereference() first'.format(self.contents[i]))
-                    modcontents.append(modgatedict)
-                            
-
-        return Gate(modcontents, self.chip, None)
+        self.contents = [item for item in self.contents if not isinstance(item, VirtualZ)]
 
     def copy(self):
         """
@@ -356,7 +321,7 @@ class Gate:
         """
         cpycontents = []
         for content in self.contents:
-            if isinstance(content, GatePulse) or isinstance(content, dict):
+            if isinstance(content, GatePulse) or isinstance(content, dict) or isinstance(content, VirtualZ):
                 cpycontents.append(content.copy())
             else:
                 raise TypeError
@@ -394,8 +359,6 @@ class GatePulse:
             env = [env]
         self._env_desc = env
         self._env = None
-        #if env is not None: 
-        #    self.env = Envelope(env)
         if amp is not None: 
             self.amp = amp
         if t0 is not None: 
@@ -412,20 +375,6 @@ class GatePulse:
             self._env = Envelope(self._env_desc)
         return self._env
 
-    def get_if_samples(self, dt, flo=0):
-        pass
-        #if isinstance(fcarrier, str):
-        #    if self.chip is not None:
-        #        fcarrier = self.chip.get_qubit_freq(self.fcarrier)
-        #    else:
-        #        raise Exception('Cannot resolve refernce to {}; add attribute for parent chip'.format(fcarrier))
-        #fif = 0 if self.fcarrier==0 else fcarrier - flo
-        #if self.dest is not None:
-        #    tv=self.env.env_val(dt=dt, twidth=self.twidth, fif=0*fif, pini=self.pcarrier, amp=self.amp, mod=mod)
-        #    tv.tstart(self.tstart)
-        #else:
-        #    tv=None
-        #return tv
     def update(self, keys, value):
         if keys[0] == 'env':
             if hasattr(self, 'env'):
@@ -454,10 +403,6 @@ class GatePulse:
     @property
     def tend(self):
         return self.tstart + self.twidth
-
-    @property
-    def is_zphase(self):
-        return self._env_desc is None
 
     @property
     def pcarrier(self):
@@ -571,6 +516,48 @@ class Envelope:
     def __eq__(self, other):
         return sorted(self.env_desc) == sorted(other.env_desc)
 
+class VirtualZ:
+    """
+    Attributes:
+        qubit: qubitid
+        freqname: freqname within qubit config to use
+        freq to use is '<qubit>.<freqname>
+        phase: phase in radians
+    """
+
+    def __init__(self, freqname, phase, qubit=None):
+        if qubit is None:
+            assert '.' in freqname
+            self.qubit = freqname.split('.')[0]
+            self.freqname = freqname.split('.')[1]
+
+        else:
+            self.qubit = qubit
+            if '.' in freqname:
+                self.freqname = freqname.split('.')[1]
+            else:
+                self.freqname = freqname
+
+        self._phase = phase
+
+    @property
+    def global_freqname(self):
+        return self.qubit + '.' + self.freqname
+
+    @property
+    def phase(self):
+        if isinstance(self._phase, str):
+            return eval(self._phase.replace('numpy', 'np'))
+        else:
+            return self._phase
+
+    @property
+    def cfg_dict(self):
+        return {'gate': 'virtualz', 'freq': self.global_freqname, 'phase': self._phase}
+
+    def copy(self):
+        return copy.copy(self)
+
 
 def convert_legacy_json(cfg_dict):
     if isinstance(cfg_dict, str):
@@ -582,6 +569,14 @@ def convert_legacy_json(cfg_dict):
             # change gate strings to dict format
             if isinstance(pulse, str):
                 gate[i] = {'gate': pulse}
+
+            #reformat virtualz pulse
+            elif 'env' not in pulse.keys() and 'gate' not in pulse.keys():
+                zgate = {'gate': 'virtualz'}
+                zgate['freq'] = pulse['fcarrier']
+                zgate['phase'] = pulse['pcarrier']
+                gate[i] = zgate
+
             # remove extraneous keys
             else:
                 newpulse = {}
