@@ -11,7 +11,7 @@ try:
 except ImportError:
     print('warning: could not import ipdb')
 
-VALID_PULSE_KEYS = ['pcarrier', 'fcarrier', 'dest', 't0', 'env', 'amp', 'twidth', 'gate']
+VALID_PULSE_KEYS = ['phase', 'freq', 'dest', 't0', 'env', 'amp', 'twidth', 'gate']
 
 class Qubit:
     """
@@ -333,7 +333,7 @@ class Gate:
 
 
     #def pcalc(self, dt=0, padd=0, freq=None): #todo: what is this?
-    #    return np.array([p.pcarrier+2*np.pi*(freq  if freq else p.fcarrier)*(dt+p.t0)+padd for p  in  self.get_pulses()])
+    #    return np.array([p.phase+2*np.pi*(freq  if freq else p.freq)*(dt+p.t0)+padd for p  in  self.get_pulses()])
 
 class GatePulse:
     """
@@ -345,14 +345,14 @@ class GatePulse:
     Methods
     -------
     """
-    def __init__(self, pcarrier, fcarrier, dest=None, amp=None, t0=None, twidth=None, env=None, gate=None, chip=None):
+    def __init__(self, phase, freq, dest=None, amp=None, t0=None, twidth=None, env=None, gate=None, chip=None):
         '''
         t0: pulse start time relative to the gate start time
         twidth: pulse env function parameter for the pulse width
         '''
         self.dest = dest 
-        self._fcarrier = fcarrier
-        self._pcarrier = pcarrier
+        self._freq = freq
+        self._phase = phase
         self.chip = chip
         self.gate = gate
         if env is not None and not isinstance(env, list):
@@ -409,40 +409,40 @@ class GatePulse:
         return self.tstart + self.twidth
 
     @property
-    def pcarrier(self):
-        if isinstance(self._pcarrier, str):
-            return eval(self._pcarrier.replace('numpy', 'np'))
+    def phase(self):
+        if isinstance(self._phase, str):
+            return eval(self._phase.replace('numpy', 'np'))
         else:
-            return self._pcarrier
+            return self._phase
 
-    @pcarrier.setter
-    def pcarrier(self, pcarrier):
-        self._pcarrier = pcarrier
+    @phase.setter
+    def phase(self, phase):
+        self._phase = phase
 
     @property
-    def fcarrier(self):
-        if isinstance(self._fcarrier, str):
-            return self.chip.get_qubit_freq(self._fcarrier)
+    def freq(self):
+        if isinstance(self._freq, str):
+            return self.chip.get_qubit_freq(self._freq)
         else:
-            return self._fcarrier
+            return self._freq
 
     @property
-    def fcarriername(self):
-        if isinstance(self._fcarrier, str):
-            return self._fcarrier
+    def freqname(self):
+        if isinstance(self._freq, str):
+            return self._freq
         else:
             return None
     
-    @fcarrier.setter
-    def fcarrier(self, fcarrier):
-        self._fcarrier = fcarrier
+    @freq.setter
+    def freq(self, freq):
+        self._freq = freq
 
     @property
     def cfg_dict(self):
         #cfg = vars(self)
         cfg = {}
-        cfg['fcarrier'] = self._fcarrier
-        cfg['pcarrier'] = self._pcarrier
+        cfg['freq'] = self._freq
+        cfg['phase'] = self._phase
         if hasattr(self, 'dest'):
             cfg['dest'] = self.dest
         if hasattr(self, 'twidth'):
@@ -577,15 +577,19 @@ def convert_legacy_json(cfg_dict):
             #reformat virtualz pulse
             elif 'env' not in pulse.keys() and 'gate' not in pulse.keys():
                 zgate = {'gate': 'virtualz'}
-                zgate['freq'] = pulse['fcarrier']
-                zgate['phase'] = pulse['pcarrier']
+                zgate['freq'] = pulse['freq']
+                zgate['phase'] = pulse['phase']
                 gate[i] = zgate
 
-            # remove extraneous keys
+            # This is a GatePulse. Remove extraneous keys and change names
             else:
                 newpulse = {}
                 for key, value in pulse.items():
-                    if key in VALID_PULSE_KEYS:
+                    if key == 'fcarrier':
+                        newpulse['freq'] = value
+                    elif key == 'pcarrier':
+                        newpulse['phase'] = value
+                    elif key in VALID_PULSE_KEYS:
                         newpulse[key] = value
                 gate[i] = newpulse
 
