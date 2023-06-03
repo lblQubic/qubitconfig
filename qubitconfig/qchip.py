@@ -275,15 +275,6 @@ class Gate:
         else:
             raise Exception('unsupported type')
 
-    def get_norm(self, dt, ADC_FULLSCALE=32767):
-        if self.isread:
-            pulses = self.get_pulses()
-            if len(pulses) != 2:
-                raise Exception('Norm calculation assumes 1 up and 1 downconversion pulse')
-            return np.sum(np.abs(ADC_FULLSCALE*pulses[0].get_env_samples(dt)[1]*pulses[1].get_env_samples(dt)[1]))
-        else:
-            raise Exception('Norm only implemented for readout-type gates. If this is a readout gate, set isread attribute')
-
     def get_pulses(self, gate_t0=0):
         """
         Returns a list of pulses (as GatePulse objects) that make up the gate. All 
@@ -355,10 +346,7 @@ class GatePulse:
         self._phase = phase
         self.chip = chip
         self.gate = gate
-        if env is not None and not isinstance(env, list):
-            env = [env]
-        self._env_desc = env
-        self._env = None
+        self.env = env
         if amp is not None: 
             self.amp = amp
         if t0 is not None: 
@@ -366,43 +354,22 @@ class GatePulse:
         if twidth is not None: 
             self.twidth = twidth
 
-    @property
-    def env(self):
-        """
-        try lazy creation/loading of envelope
-        """
-        if not self._env and self._env_desc is not None:
-            self._env = Envelope(self._env_desc)
-        return self._env
-
-    @env.setter
-    def env(self, env):
-        self._env = env
-
     def update(self, keys, value):
         if keys[0] == 'env':
-            if hasattr(self, 'env'):
-                self.env.update(keys[1:], value)
+            if (not hasattr(self, 'env')) or len(keys) == 1:
+                self.env = value
             else:
-                self.env = Envelope(value)
+                assert isinstance(self.env, dict) or isinstance(self.env, list)
+                content = self.env
+                for i, key in enumerate(keys[1:]):
+                    if i == len(keys[1:]) - 1:
+                        content[key] = value
+                    else:
+                        content = content[key]
         else:
             assert len(keys) == 1
             setattr(self, keys[0], value)
         
-
-    def get_env_samples(self, dt):
-        """
-        Returns the pulse envelope sampled at dt
-
-        Parameters
-        ----------
-            dt : float
-                sampling interval in seconds
-        Returns
-        -------
-            numpy array
-        """
-        return self.env.get_samples(dt, self.twidth, self.amp)
 
     @property
     def tend(self):
@@ -451,8 +418,10 @@ class GatePulse:
             cfg['t0'] = self.t0
         if hasattr(self, 'amp'):
             cfg['amp'] = self.amp
-        if self._env_desc is not None:
-            cfg['env'] = self._env_desc
+        if isinstance(self.env, dict) or isinstance(self.env[0], dict):
+            cfg['env'] = self.env
+        elif isinstance(self.env, np.ndarray) or isinstance(self.env, list):
+            cfg['env'] = str(self.env.data)
         return cfg
 
     def __ne__(self, other):
@@ -474,51 +443,6 @@ class GatePulse:
         #return GatePulse(**self.cfg_dict, gate=self.gate, chip=self.chip)
         return GatePulse(**self.cfg_dict)
 
-
-class Envelope:
-    def __init__(self, env_desc):
-        if not isinstance(env_desc, list):
-            env_desc=[env_desc]
-        self.env_desc=copy.deepcopy(env_desc)
-        #self.env_desc = []
-        #for env in env_desc:
-        #    envdict = {}
-        #    for k, v in env.items():
-        #        if isinstance(v, dict):
-        #            envdict[k] = v.copy()
-        #        else:
-        #            envdict[k] = v
-        #    self.env_desc.append(envdict)
-
-
-    def get_samples(self, dt, twidth, amp=1.0):
-        samples = None
-        tlist = None
-        twidth = round(twidth, 10) #todo: why do we round this?
-
-        for env in self.env_desc:
-            ti, vali = getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['paradict'])
-            if samples:
-                samples *= vali
-                assert np.all(ti==tlist)
-            else:
-                samples = vali
-                tlist = ti
-
-        samples *= amp
-
-        return tlist, samples   
-
-    def update(self, keys, value):
-        env_desc = self.env_desc
-        for i, key in enumerate(keys):
-            if i == len(keys) - 1:
-                env_desc[key] = value
-            else:
-                env_desc = env_desc[key]
-
-    def __eq__(self, other):
-        return sorted(self.env_desc) == sorted(other.env_desc)
 
 class VirtualZ:
     """
