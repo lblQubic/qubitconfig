@@ -512,8 +512,12 @@ def convert_legacy_json(cfg_dict):
             #reformat virtualz pulse
             elif 'env' not in pulse.keys() and 'gate' not in pulse.keys():
                 zgate = {'gate': 'virtualz'}
-                zgate['freq'] = pulse['freq']
-                zgate['phase'] = pulse['phase']
+                try:
+                    zgate['freq'] = pulse['freq']
+                    zgate['phase'] = pulse['phase']
+                except KeyError:
+                    zgate['freq'] = pulse['fcarrier']
+                    zgate['phase'] = pulse['pcarrier']
                 gate[i] = zgate
 
             # This is a GatePulse. Remove extraneous keys and change names
