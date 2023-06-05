@@ -336,7 +336,7 @@ class GatePulse:
     Methods
     -------
     """
-    def __init__(self, phase, freq, dest=None, amp=None, t0=None, twidth=None, env=None, gate=None, chip=None):
+    def __init__(self, phase, freq, dest, amp, t0=None, twidth=None, env=None, gate=None, chip=None):
         '''
         t0: pulse start time relative to the gate start time
         twidth: pulse env function parameter for the pulse width
@@ -347,8 +347,7 @@ class GatePulse:
         self.chip = chip
         self.gate = gate
         self.env = env
-        if amp is not None: 
-            self.amp = amp
+        self.amp = amp
         if t0 is not None: 
             self.t0 = t0
         if twidth is not None: 
@@ -410,18 +409,21 @@ class GatePulse:
         cfg = {}
         cfg['freq'] = self._freq
         cfg['phase'] = self._phase
-        if hasattr(self, 'dest'):
-            cfg['dest'] = self.dest
+        cfg['dest'] = self.dest
+
         if hasattr(self, 'twidth'):
             cfg['twidth'] = self.twidth
         if hasattr(self, 't0'):
             cfg['t0'] = self.t0
-        if hasattr(self, 'amp'):
-            cfg['amp'] = self.amp
-        if isinstance(self.env, dict) or isinstance(self.env[0], dict):
+        cfg['amp'] = self.amp
+
+        if isinstance(self.env, np.ndarray):
+            cfg['env'] = list(self.env)
+        elif isinstance(self.env, dict) or isinstance(self.env[0], dict):
             cfg['env'] = self.env
-        elif isinstance(self.env, np.ndarray) or isinstance(self.env, list):
-            cfg['env'] = str(self.env.data)
+        else:
+            raise TypeError
+
         return cfg
 
     def __ne__(self, other):
@@ -441,7 +443,16 @@ class GatePulse:
 
     def copy(self):
         #return GatePulse(**self.cfg_dict, gate=self.gate, chip=self.chip)
-        return GatePulse(**self.cfg_dict)
+        if hasattr(self, 'twidth'):
+            twidth = self.twidth
+        else:
+            twidth = None
+
+        if hasattr(self, 't0'):
+            t0 = self.t0
+        else:
+            t0 = None
+        return GatePulse(self._phase, self._freq, self.dest, self.amp, t0, twidth, self.env)
 
 
 class VirtualZ:
