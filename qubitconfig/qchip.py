@@ -11,7 +11,7 @@ try:
 except ImportError:
     print('warning: could not import ipdb')
 
-VALID_PULSE_KEYS = ['pcarrier', 'fcarrier', 'dest', 't0', 'env', 'amp', 'twidth', 'gate']
+VALID_PULSE_KEYS = ['phase', 'freq', 'dest', 't0', 'env', 'amp', 'twidth', 'gate']
 
 class Qubit:
     """
@@ -275,15 +275,6 @@ class Gate:
         else:
             raise Exception('unsupported type')
 
-    def get_norm(self, dt, ADC_FULLSCALE=32767):
-        if self.isread:
-            pulses = self.get_pulses()
-            if len(pulses) != 2:
-                raise Exception('Norm calculation assumes 1 up and 1 downconversion pulse')
-            return np.sum(np.abs(ADC_FULLSCALE*pulses[0].get_env_samples(dt)[1]*pulses[1].get_env_samples(dt)[1]))
-        else:
-            raise Exception('Norm only implemented for readout-type gates. If this is a readout gate, set isread attribute')
-
     def get_pulses(self, gate_t0=0):
         """
         Returns a list of pulses (as GatePulse objects) that make up the gate. All 
@@ -333,7 +324,7 @@ class Gate:
 
 
     #def pcalc(self, dt=0, padd=0, freq=None): #todo: what is this?
-    #    return np.array([p.pcarrier+2*np.pi*(freq  if freq else p.fcarrier)*(dt+p.t0)+padd for p  in  self.get_pulses()])
+    #    return np.array([p.phase+2*np.pi*(freq  if freq else p.freq)*(dt+p.t0)+padd for p  in  self.get_pulses()])
 
 class GatePulse:
     """
@@ -345,114 +336,94 @@ class GatePulse:
     Methods
     -------
     """
-    def __init__(self, pcarrier, fcarrier, dest=None, amp=None, t0=None, twidth=None, env=None, gate=None, chip=None):
+    def __init__(self, phase, freq, dest, amp, t0=None, twidth=None, env=None, gate=None, chip=None):
         '''
         t0: pulse start time relative to the gate start time
         twidth: pulse env function parameter for the pulse width
         '''
         self.dest = dest 
-        self._fcarrier = fcarrier
-        self._pcarrier = pcarrier
+        self._freq = freq
+        self._phase = phase
         self.chip = chip
         self.gate = gate
-        if env is not None and not isinstance(env, list):
-            env = [env]
-        self._env_desc = env
-        self._env = None
-        if amp is not None: 
-            self.amp = amp
+        self.env = env
+        self.amp = amp
         if t0 is not None: 
             self.t0 = t0
         if twidth is not None: 
             self.twidth = twidth
 
-    @property
-    def env(self):
-        """
-        try lazy creation/loading of envelope
-        """
-        if not self._env and self._env_desc is not None:
-            self._env = Envelope(self._env_desc)
-        return self._env
-
-    @env.setter
-    def env(self, env):
-        self._env = env
-
     def update(self, keys, value):
         if keys[0] == 'env':
-            if hasattr(self, 'env'):
-                self.env.update(keys[1:], value)
+            if (not hasattr(self, 'env')) or len(keys) == 1:
+                self.env = value
             else:
-                self.env = Envelope(value)
+                assert isinstance(self.env, dict) or isinstance(self.env, list)
+                content = self.env
+                for i, key in enumerate(keys[1:]):
+                    if i == len(keys[1:]) - 1:
+                        content[key] = value
+                    else:
+                        content = content[key]
         else:
             assert len(keys) == 1
             setattr(self, keys[0], value)
         
-
-    def get_env_samples(self, dt):
-        """
-        Returns the pulse envelope sampled at dt
-
-        Parameters
-        ----------
-            dt : float
-                sampling interval in seconds
-        Returns
-        -------
-            numpy array
-        """
-        return self.env.get_samples(dt, self.twidth, self.amp)
 
     @property
     def tend(self):
         return self.tstart + self.twidth
 
     @property
-    def pcarrier(self):
-        if isinstance(self._pcarrier, str):
-            return eval(self._pcarrier.replace('numpy', 'np'))
+    def phase(self):
+        if isinstance(self._phase, str):
+            return eval(self._phase.replace('numpy', 'np'))
         else:
-            return self._pcarrier
+            return self._phase
 
-    @pcarrier.setter
-    def pcarrier(self, pcarrier):
-        self._pcarrier = pcarrier
+    @phase.setter
+    def phase(self, phase):
+        self._phase = phase
 
     @property
-    def fcarrier(self):
-        if isinstance(self._fcarrier, str):
-            return self.chip.get_qubit_freq(self._fcarrier)
+    def freq(self):
+        if isinstance(self._freq, str):
+            return self.chip.get_qubit_freq(self._freq)
         else:
-            return self._fcarrier
+            return self._freq
 
     @property
-    def fcarriername(self):
-        if isinstance(self._fcarrier, str):
-            return self._fcarrier
+    def freqname(self):
+        if isinstance(self._freq, str):
+            return self._freq
         else:
             return None
     
-    @fcarrier.setter
-    def fcarrier(self, fcarrier):
-        self._fcarrier = fcarrier
+    @freq.setter
+    def freq(self, freq):
+        self._freq = freq
 
     @property
     def cfg_dict(self):
         #cfg = vars(self)
         cfg = {}
-        cfg['fcarrier'] = self._fcarrier
-        cfg['pcarrier'] = self._pcarrier
-        if hasattr(self, 'dest'):
-            cfg['dest'] = self.dest
+        cfg['freq'] = self._freq
+        cfg['phase'] = self._phase
+        cfg['dest'] = self.dest
+
         if hasattr(self, 'twidth'):
             cfg['twidth'] = self.twidth
         if hasattr(self, 't0'):
             cfg['t0'] = self.t0
-        if hasattr(self, 'amp'):
-            cfg['amp'] = self.amp
-        if self._env_desc is not None:
-            cfg['env'] = self._env_desc
+        cfg['amp'] = self.amp
+
+        if isinstance(self.env, np.ndarray):
+            cfg['env'] = list(self.env)
+        elif isinstance(self.env, dict) or isinstance(self.env[0], dict):
+            cfg['env'] = self.env
+        else:
+            raise TypeError
+
         return cfg
 
     def __ne__(self, other):
@@ -472,53 +443,17 @@ class GatePulse:
 
     def copy(self):
         #return GatePulse(**self.cfg_dict, gate=self.gate, chip=self.chip)
-        return GatePulse(**self.cfg_dict)
+        if hasattr(self, 'twidth'):
+            twidth = self.twidth
+        else:
+            twidth = None
 
+        if hasattr(self, 't0'):
+            t0 = self.t0
+        else:
+            t0 = None
+        return GatePulse(self._phase, self._freq, self.dest, self.amp, t0, twidth, self.env)
 
-class Envelope:
-    def __init__(self, env_desc):
-        if not isinstance(env_desc, list):
-            env_desc=[env_desc]
-        self.env_desc=copy.deepcopy(env_desc)
-        #self.env_desc = []
-        #for env in env_desc:
-        #    envdict = {}
-        #    for k, v in env.items():
-        #        if isinstance(v, dict):
-        #            envdict[k] = v.copy()
-        #        else:
-        #            envdict[k] = v
-        #    self.env_desc.append(envdict)
-
-
-    def get_samples(self, dt, twidth, amp=1.0):
-        samples = None
-        tlist = None
-        twidth = round(twidth, 10) #todo: why do we round this?
-
-        for env in self.env_desc:
-            ti, vali = getattr(envelope_pulse, env['env_func'])(dt=dt, twidth=twidth, **env['paradict'])
-            if samples:
-                samples *= vali
-                assert np.all(ti==tlist)
-            else:
-                samples = vali
-                tlist = ti
-
-        samples *= amp
-
-        return tlist, samples   
-
-    def update(self, keys, value):
-        env_desc = self.env_desc
-        for i, key in enumerate(keys):
-            if i == len(keys) - 1:
-                env_desc[key] = value
-            else:
-                env_desc = env_desc[key]
-
-    def __eq__(self, other):
-        return sorted(self.env_desc) == sorted(other.env_desc)
 
 class VirtualZ:
     """
@@ -577,15 +512,23 @@ def convert_legacy_json(cfg_dict):
             #reformat virtualz pulse
             elif 'env' not in pulse.keys() and 'gate' not in pulse.keys():
                 zgate = {'gate': 'virtualz'}
-                zgate['freq'] = pulse['fcarrier']
-                zgate['phase'] = pulse['pcarrier']
+                try:
+                    zgate['freq'] = pulse['freq']
+                    zgate['phase'] = pulse['phase']
+                except KeyError:
+                    zgate['freq'] = pulse['fcarrier']
+                    zgate['phase'] = pulse['pcarrier']
                 gate[i] = zgate
 
-            # remove extraneous keys
+            # This is a GatePulse. Remove extraneous keys and change names
             else:
                 newpulse = {}
                 for key, value in pulse.items():
-                    if key in VALID_PULSE_KEYS:
+                    if key == 'fcarrier':
+                        newpulse['freq'] = value
+                    elif key == 'pcarrier':
+                        newpulse['phase'] = value
+                    elif key in VALID_PULSE_KEYS:
                         newpulse[key] = value
                 gate[i] = newpulse
 
