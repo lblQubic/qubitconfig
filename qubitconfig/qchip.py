@@ -452,7 +452,12 @@ class GatePulse:
             t0 = self.t0
         else:
             t0 = None
-        return GatePulse(self._phase, self._freq, self.dest, self.amp, t0, twidth, self.env)
+        
+        pulse = GatePulse(self._phase, self._freq, self.dest, self.amp, t0, twidth, self.env)
+        if hasattr(self, 'qubit'):
+            pulse.qubit = self.qubit
+
+        return pulse
 
 
 class VirtualZ:
