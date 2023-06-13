@@ -431,7 +431,9 @@ class GatePulse:
 
     def __hash__(self):
         #return hash(str(self.cfg_dict))
-        return hash(str({k:self.cfg_dict[k] for k in ("amp", "twidth", "t0", "dest") if k in self.cfg_dict}))
+        hashstr = str({k:self.cfg_dict[k] for k in ("amp", "twidth", "t0", "dest") if k in self.cfg_dict})
+        hashstr += str(list(self.env))
+        return hash(hashstr)
 
     def timeoverlap(self, other):
         overlap=False
