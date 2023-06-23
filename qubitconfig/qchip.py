@@ -367,6 +367,7 @@ class GatePulse:
                         content = content[key]
         else:
             assert len(keys) == 1
+            assert keys[0] in ['dest', 'freq', 'phase', 'amp', 'twidth', 't0']
             setattr(self, keys[0], value)
         
 
