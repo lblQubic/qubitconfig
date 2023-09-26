@@ -92,6 +92,20 @@ def cos_edge_square(twidth,  dt, ramp_fraction=0.25, ramp_length=None):
         env=np.ones(width)
     return (t, env.astype('complex64'))
 
+def cos_edge(twidth,  dt, ramp_fraction=0.25, ramp_length=None,edge='full'):
+    nt=int(twidth//dt)
+    if edge=='full':
+        phi=np.linspace(-np.pi,np.pi,nt)
+    elif edge=='rising':
+        phi=np.linspace(-np.pi,0,nt)
+    elif edge=='faling':
+        phi=np.linspace(0,-np.pi,nt)
+    else:
+        raise Exception(f’Invalid edge: {edge}. Must be “rising”, “falling”, or “full”’)
+    t=np.arange(0,twidth,dt)
+    env=np.cos(phi)
+    return (t,env.astype('complex64'))
+
 def sin_edge_square(twidth, dt, ramp_fraction=0.25):
     """Return a square pulse shape of the specified amplitude with cosine edges.
 

@@ -270,7 +270,7 @@ class Gate:
                     content[keys[i]] = value
                 else:
                     content = content[keys[i]]
-        elif isinstance(content, GatePulse):
+        elif isinstance(content, GatePulse)  or isinstance(content, VirtualZ):
             content.update(keys[1:], value)
         else:
             raise Exception('unsupported type')
@@ -504,6 +504,12 @@ class VirtualZ:
 
     def copy(self):
         return copy.copy(self)
+
+    def update(self, keys, value):
+        if keys[0] == 'phase':
+            self._phase=value
+        else:
+            raise Exception(f'Invalid attribute: {keys[0]}')
 
 
 def convert_legacy_json(cfg_dict):
