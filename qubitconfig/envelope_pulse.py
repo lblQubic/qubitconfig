@@ -6,11 +6,16 @@ def mark(twidth, dt):
     width=len(t)
     return (t, np.ones(width).astype('int'))
 
-def square(twidth, dt, amplitude=1.0, phase=0.0):
+def square(twidth, dt, amplitude=1.0, phase=0.0,alternate_period=None):
     """A simple square pulse"""
     t=np.arange(0, twidth, dt)
     width=len(t)
-    return (t, (np.ones(width)*amplitude*np.exp(1j*phase)).astype('complex64'))
+    env=np.ones(width)*amplitude*np.exp(1j*phase)
+    if alternate_period is not None:
+        t1,alt=alternate(twidth=twidth,dt=dt,period=alternate_period)
+        env=env*alt
+    #return (t, (np.ones(width)*amplitude*np.exp(1j*phase)).astype('complex64'))
+    return (t, env.astype('complex64'))
 
 def sin(twidth, dt, frequency=0, phase0=0.0):
     """A simple sin pulse"""
@@ -71,7 +76,13 @@ def DRAG(twidth, dt, sigmas=3, alpha=0.5, delta=-268e6,  df=0):
     p2=(gaus - 1j * alpha * dgaus / delta)
     return (t, (p1*p2).astype('complex64'))
 
-def cos_edge_square(twidth,  dt, ramp_fraction=0.25, ramp_length=None):
+def alternate(twidth,dt,period,mod=2):
+    t=np.arange(0, twidth, dt)
+    ph=(t//period)%mod*np.pi
+    env=np.exp(1j*ph)
+    return (t, env.astype('complex64'))
+
+def cos_edge_square(twidth,  dt, ramp_fraction=0.25, ramp_length=None,alternate_period=None):
     if ramp_length is None:
         tedge=np.arange(0, 2*twidth*ramp_fraction, dt)
     else:
@@ -90,6 +101,9 @@ def cos_edge_square(twidth,  dt, ramp_fraction=0.25, ramp_length=None):
     else:
         print('ramp_fraction (ramp_length/twidth) should be 0<ramp_function<=0.5, %s and twidth>0 %s'%(str(ramp_fraction), str(twidth)))
         env=np.ones(width)
+    if alternate_period is not None:
+        t1,alt=alternate(twidth=twidth,dt=dt,period=alternate_period)
+        env=env*alt
     return (t, env.astype('complex64'))
 
 def cos_edge(twidth,  dt, ramp_fraction=0.25, ramp_length=None,edge='full'):
