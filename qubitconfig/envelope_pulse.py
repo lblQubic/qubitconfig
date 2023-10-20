@@ -115,7 +115,7 @@ def cos_edge(twidth,  dt, ramp_fraction=0.25, ramp_length=None,edge='full'):
     elif edge=='faling':
         phi=np.linspace(0,-np.pi,nt)
     else:
-        raise Exception(f’Invalid edge: {edge}. Must be “rising”, “falling”, or “full”’)
+        raise Exception(f'Invalid edge: {edge}. Must be "rising", "falling", or "full"')
     t=np.arange(0,twidth,dt)
     env=np.cos(phi)
     return (t,env.astype('complex64'))
